@@ -1,4 +1,5 @@
 import { useOutletContext } from "react-router-dom";
+import { motion } from "framer-motion";
 import { StatCard } from "@/components/ui/stat-card";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,10 @@ import {
   Plus,
   CheckCircle,
   Clock,
-  Target
+  Target,
+  Trophy,
+  Flame,
+  Calendar
 } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
 
@@ -63,25 +67,49 @@ export default function Dashboard() {
       stats: {
         applications: 3,
         offers: 1,
-        acceptance: 78
-      }
+        acceptance: 78,
+        universities: "Technical University of Munich, RWTH Aachen, Heidelberg University"
+      },
+      nextSteps: [
+        "Submit remaining documents to TU Munich",
+        "Complete APS certificate application",
+        "Open blocked account with Deutsche Bank"
+      ],
+      visaInfo: "Student visa processing: 4-8 weeks"
     },
     UK: {
       greeting: "Hello! Ready for the UK? 🇬🇧",
       stats: {
         applications: 2,
         offers: 0,
-        acceptance: 65
-      }
+        acceptance: 65,
+        universities: "Imperial College London, University of Edinburgh"
+      },
+      nextSteps: [
+        "Submit UCAS application",
+        "Prepare for IELTS exam",
+        "Research accommodation options"
+      ],
+      visaInfo: "Student visa processing: 3-6 weeks"
     }
   };
 
   const currentData = countryData[selectedCountry];
 
   return (
-    <div className="space-y-8">
+    <motion.div 
+      className="space-y-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
       {/* Welcome Banner */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-primary p-8 md:p-12 text-white">
+      <motion.section 
+        className="relative overflow-hidden rounded-3xl bg-gradient-primary p-8 md:p-12 text-white"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+      >
         <div className="absolute inset-0 opacity-20">
           <img 
             src={heroImage} 
@@ -107,7 +135,7 @@ export default function Dashboard() {
         {/* Floating Elements */}
         <div className="absolute top-8 right-8 w-24 h-24 bg-white/10 rounded-full animate-float" />
         <div className="absolute bottom-8 right-16 w-16 h-16 bg-white/5 rounded-full animate-float" style={{ animationDelay: "1s" }} />
-      </section>
+        </motion.section>
 
       {/* Overview Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -262,6 +290,6 @@ export default function Dashboard() {
           </div>
         </Card>
       </section>
-    </div>
+    </motion.div>
   );
 }
