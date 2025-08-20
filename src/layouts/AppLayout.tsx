@@ -131,7 +131,7 @@ export function AppLayout() {
           {/* Logo */}
           <div className="flex items-center gap-3">
   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#2a3439" }}>
-    <img src="/assets/Uni360 logo.png" alt="Uni360 Logo" className="w-6 h-6 object-contain" />
+  <img src={UniLogo} alt="Uni360 Logo" className="w-6 h-6 object-contain" />
   </div>
   <span className="font-bold text-xl text-foreground">Uni360</span>
 </div>
