@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronRight
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext"; // Import your auth context
 
 const navigationItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -29,6 +30,19 @@ const navigationItems = [
 export function FloatingSidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth(); // Get logout function from auth context
+
+  const handleSignOut = async () => {
+    try {
+      await logout(); // Call the logout function from your auth context
+      navigate('/login'); // Navigate to login page
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Even if logout fails, navigate to login page
+      navigate('/login');
+    }
+  };
 
   return (
     <>
@@ -104,6 +118,7 @@ export function FloatingSidebar() {
           </NavLink>
           
           <button
+            onClick={handleSignOut}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl",
               "transition-all duration-micro ease-out",

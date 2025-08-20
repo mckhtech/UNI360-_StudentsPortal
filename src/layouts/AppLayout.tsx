@@ -5,6 +5,8 @@ import { BottomNavigation } from "@/components/ui/bottom-navigation";
 import { CountryToggle } from "@/components/ui/country-toggle";
 import { Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import UniLogo from "@/assets/Uni360 logo.png";
 
 type Country = "DE" | "UK";
 
@@ -15,13 +17,6 @@ interface Notification {
   isRead: boolean;
   createdAt: string;
 }
-
-// Mock user data - replace with your actual user context/state
-const mockUser = {
-  name: "John Doe",
-  avatar: "", // Empty for initials fallback
-  uuid: "abc123def456ghi789"
-};
 
 // Mock notifications - replace with your actual notifications state
 const mockNotifications: Notification[] = [
@@ -49,6 +44,7 @@ const mockNotifications: Notification[] = [
 ];
 
 export function AppLayout() {
+  const { user, logout } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState<Country>("DE");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -80,17 +76,43 @@ export function AppLayout() {
     navigate('/profilebuilder');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setShowProfileMenu(false);
-    // Add your logout logic here
-    console.log('Logging out...');
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      navigate('/login');
+    }
   };
 
   // Close dropdowns when clicking outside
   const handleBackdropClick = () => {
     setShowNotifications(false);
     setShowProfileMenu(false);
+  };
+
+  // Get user display name
+  const getUserName = () => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    } else if (user?.name) {
+      return user.name;
+    } else if (user?.email) {
+      return user.email.split('@')[0];
+    }
+    return 'User';
+  };
+
+  // Get user initials
+  const getUserInitials = () => {
+    const name = getUserName();
+    const nameParts = name.split(' ');
+    if (nameParts.length >= 2) {
+      return `${nameParts[0].charAt(0)}${nameParts[1].charAt(0)}`.toUpperCase();
+    }
+    return name.charAt(0).toUpperCase();
   };
 
   return (
@@ -108,11 +130,11 @@ export function AppLayout() {
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">U</span>
-            </div>
-            <span className="font-bold text-xl text-foreground">Uni360</span>
-          </div>
+  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#2a3439" }}>
+    <img src="/assets/Uni360 logo.png" alt="Uni360 Logo" className="w-6 h-6 object-contain" />
+  </div>
+  <span className="font-bold text-xl text-foreground">Uni360</span>
+</div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
@@ -215,15 +237,15 @@ export function AppLayout() {
                   setShowNotifications(false);
                 }}
               >
-                {mockUser.avatar ? (
+                {user?.profilePhoto || user?.avatar ? (
                   <img 
-                    src={mockUser.avatar} 
-                    alt={mockUser.name}
+                    src={user.profilePhoto || user.avatar} 
+                    alt={getUserName()}
                     className="w-6 h-6 rounded-full object-cover"
                   />
                 ) : (
                   <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-medium">
-                    {mockUser.name.charAt(0)}
+                    {getUserInitials()}
                   </div>
                 )}
                 <ChevronDown className="w-4 h-4" />
@@ -235,23 +257,23 @@ export function AppLayout() {
                   {/* User Info */}
                   <div className="p-4 border-b border-border">
                     <div className="flex items-center gap-3">
-                      {mockUser.avatar ? (
+                      {user?.profilePhoto || user?.avatar ? (
                         <img 
-                          src={mockUser.avatar} 
-                          alt={mockUser.name}
+                          src={user.profilePhoto || user.avatar} 
+                          alt={getUserName()}
                           className="w-10 h-10 rounded-full object-cover"
                         />
                       ) : (
                         <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-medium">
-                          {mockUser.name.charAt(0)}
+                          {getUserInitials()}
                         </div>
                       )}
                       <div>
                         <p className="font-medium text-foreground">
-                          {mockUser.name}
+                          {getUserName()}
                         </p>
                         <p className="text-sm text-muted-foreground font-mono">
-                          ID: {mockUser.uuid.slice(0, 8)}...
+                          {user?.uuid ? `UUID: ${user.uuid.slice(0, 8)}...` : 'UUID: Loading...'}
                         </p>
                       </div>
                     </div>
@@ -266,8 +288,6 @@ export function AppLayout() {
                       <User className="w-4 h-4" />
                       <span className="text-sm">Profile Builder</span>
                     </button>
-                    
-
                     
                     <div className="border-t border-border my-2" />
                     

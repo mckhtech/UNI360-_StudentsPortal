@@ -18,9 +18,13 @@ import {
   Target,
   Trophy,
   Flame,
-  Calendar
+  Calendar,
+  User
 } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
+import { useAuth } from "@/contexts/AuthContext";
+import { getProfileCompletion } from "@/services/profile";
+import { getUserUUID } from "@/services/utils";
 
 type Country = "DE" | "UK";
 
@@ -62,6 +66,11 @@ const recentActivities = [
 export default function Dashboard() {
   const { selectedCountry } = useOutletContext<ContextType>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
+  // Calculate profile completion
+  const profileCompletion = getProfileCompletion(user);
+  const userUUID = getUserUUID(user);
   
   const countryData = {
     DE: {
@@ -123,14 +132,14 @@ export default function Dashboard() {
         </div>
         <div className="relative z-10 max-w-2xl">
           <h1 className="text-3xl md:text-4xl font-bold mb-4">
-            Welcome back, Alex! 🎓
+            Welcome back, {user?.name || user?.firstName || 'Student'}! 🎓
           </h1>
           <p className="text-xl opacity-90 mb-6">
             {currentData.greeting}
           </p>
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm">
             <Badge variant="secondary" className="bg-secondary text-white border-white/30">
-              UUID: ST2024-001234
+              UUID: {userUUID}
             </Badge>
             <span>Continue your journey to studying abroad</span>
           </div>
@@ -143,18 +152,35 @@ export default function Dashboard() {
 
       {/* Overview Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="md:col-span-2 lg:col-span-1">
-          <Card className="p-6 h-full flex flex-col items-center justify-center text-center">
-            <ProgressRing progress={85} size="lg" className="mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Profile Complete</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Almost there! Complete your profile to unlock all features.
-            </p>
-            <Button size="sm" className="rounded-pill">
-              Complete Profile
-            </Button>
-          </Card>
-        </div>
+        {profileCompletion < 100 && (
+          <motion.div 
+            className="md:col-span-2 lg:col-span-1"
+            initial={{ opacity: 1, scale: 1 }}
+            animate={{ 
+              opacity: profileCompletion === 100 ? 0 : 1,
+              scale: profileCompletion === 100 ? 0.8 : 1
+            }}
+            transition={{ duration: 0.5 }}
+            style={{ display: profileCompletion === 100 ? 'none' : 'block' }}
+          >
+            <Card className="p-6 h-full flex flex-col items-center justify-center text-center">
+              <ProgressRing progress={profileCompletion} size="lg" className="mb-4" />
+              <h3 className="font-semibold text-lg mb-2">Profile {profileCompletion}% Complete</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {profileCompletion >= 80 
+                  ? "Almost there! Complete your profile to unlock all features."
+                  : "Complete your profile for better recommendations."}
+              </p>
+              <Button 
+                size="sm" 
+                className="rounded-pill"
+                onClick={() => navigate('/profilebuilder')}
+              >
+                Complete Profile
+              </Button>
+            </Card>
+          </motion.div>
+        )}
 
         <StatCard
           title="Active Applications"

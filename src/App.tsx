@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,34 +15,47 @@ import Resources from "./pages/Resources";
 import AITools from "./pages/AITools";
 import Profile from "./pages/Profile";
 import ProfileBuilder from "./pages/ProfileBuilder";
-import Settings from "./pages/Settings"; // Fixed: Import the actual Settings component
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Login from './pages/auth/Login';
+import { AuthProvider } from './contexts/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<AppLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="applications" element={<Applications />} />
-            <Route path="universities" element={<Universities />} />
-            <Route path="visa" element={<Visa />} />
-            <Route path="finances" element={<Finances />} />
-            <Route path="documents" element={<Documents />} />
-            <Route path="resources" element={<Resources />} />
-            <Route path="ai-tools" element={<AITools />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="profilebuilder" element={<ProfileBuilder />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public login route */}
+            <Route path="/login" element={<Login />} />
+            
+            {/* Protected routes - ensure ProtectedRoute wraps AppLayout, not individual routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<AppLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="applications" element={<Applications />} />
+                <Route path="universities" element={<Universities />} />
+                <Route path="visa" element={<Visa />} />
+                <Route path="finances" element={<Finances />} />
+                <Route path="documents" element={<Documents />} />
+                <Route path="resources" element={<Resources />} />
+                <Route path="ai-tools" element={<AITools />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="profilebuilder" element={<ProfileBuilder />} />
+                <Route path="settings" element={<Settings />} />
+              </Route>
+            </Route>
+
+            {/* 404 route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
