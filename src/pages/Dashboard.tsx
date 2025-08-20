@@ -1,10 +1,11 @@
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { StatCard } from "@/components/ui/stat-card";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import {
   FileText,
@@ -28,13 +29,13 @@ interface ContextType {
 }
 
 const progressSteps = [
-  { id: 1, label: "Profile", completed: true },
-  { id: 2, label: "Research", completed: true },
-  { id: 3, label: "Apply", completed: false, current: true },
-  { id: 4, label: "Offer", completed: false },
-  { id: 5, label: "Visa", completed: false },
-  { id: 6, label: "Enrollment", completed: false },
-  { id: 7, label: "Arrival", completed: false },
+  { step: 1, title: "Profile Creation", completed: true, current: false },
+  { step: 2, title: "Document Upload", completed: true, current: false },
+  { step: 3, title: "University Research", completed: true, current: false },
+  { step: 4, title: "Applications", completed: false, current: true },
+  { step: 5, title: "Interviews", completed: false, current: false },
+  { step: 6, title: "Offers & Decisions", completed: false, current: false },
+  { step: 7, title: "Visa Processing", completed: false, current: false },
 ];
 
 const recentActivities = [
@@ -60,6 +61,7 @@ const recentActivities = [
 
 export default function Dashboard() {
   const { selectedCountry } = useOutletContext<ContextType>();
+  const navigate = useNavigate();
   
   const countryData = {
     DE: {
@@ -95,10 +97,12 @@ export default function Dashboard() {
   };
 
   const currentData = countryData[selectedCountry];
+  const currentStepIndex = progressSteps.findIndex(step => step.current);
+  const overallProgress = ((currentStepIndex + 1) / progressSteps.length) * 100;
 
   return (
     <motion.div 
-      className="space-y-8"
+      className="space-y-8 px-4 sm:px-0"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
@@ -124,8 +128,8 @@ export default function Dashboard() {
           <p className="text-xl opacity-90 mb-6">
             {currentData.greeting}
           </p>
-          <div className="flex items-center gap-4 text-sm">
-            <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 text-sm">
+            <Badge variant="secondary" className="bg-secondary text-white border-white/30">
               UUID: ST2024-001234
             </Badge>
             <span>Continue your journey to studying abroad</span>
@@ -182,60 +186,45 @@ export default function Dashboard() {
       </section>
 
       {/* Journey Progress */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold">Your Journey</h2>
-          <Badge variant="outline" className="text-sm">
-            Step 3 of 7
-          </Badge>
+      <section>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Your Journey Progress</h2>
+          <p className="text-muted-foreground">Step {currentStepIndex + 1} of {progressSteps.length} - You're {Math.round(overallProgress)}% through your university journey!</p>
         </div>
-
+        
         <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            {progressSteps.map((step, index) => (
-              <div key={step.id} className="flex flex-col items-center relative">
-                {/* Step Circle */}
-                <div className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-standard",
-                  step.completed 
-                    ? "bg-primary border-primary text-primary-foreground" 
-                    : step.current
-                    ? "bg-primary/10 border-primary text-primary animate-pulse-glow"
-                    : "bg-muted border-border text-muted-foreground"
-                )}>
-                  {step.completed ? (
-                    <CheckCircle className="w-6 h-6" />
-                  ) : step.current ? (
-                    <Clock className="w-6 h-6" />
-                  ) : (
-                    <Target className="w-6 h-6" />
-                  )}
+          <div className="space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="font-medium">Overall Progress</span>
+              <span className="text-primary font-semibold">{Math.round(overallProgress)}%</span>
+            </div>
+            <Progress value={overallProgress} className="h-3" />
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mt-6">
+              {progressSteps.map((step) => (
+                <div
+                  key={step.step}
+                  className={`text-center p-3 rounded-lg border-2 transition-all ${
+                    step.completed
+                      ? "border-success bg-success/5 text-success"
+                      : step.current
+                      ? "border-primary bg-primary/5 text-primary animate-pulse"
+                      : "border-border bg-muted/50 text-muted-foreground"
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full mx-auto mb-2 flex items-center justify-center text-sm font-bold ${
+                    step.completed
+                      ? "bg-success text-success-foreground"
+                      : step.current
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {step.completed ? "✓" : step.step}
+                  </div>
+                  <p className="text-xs font-medium">{step.title}</p>
                 </div>
-
-                {/* Step Label */}
-                <span className={cn(
-                  "text-sm font-medium mt-2 text-center",
-                  step.completed || step.current ? "text-foreground" : "text-muted-foreground"
-                )}>
-                  {step.label}
-                </span>
-
-                {/* Connector Line */}
-                {index < progressSteps.length - 1 && (
-                  <div className={cn(
-                    "absolute top-6 left-12 w-full h-0.5 transition-all duration-standard",
-                    step.completed ? "bg-primary" : "bg-border"
-                  )} />
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-muted/50 rounded-xl p-4">
-            <h3 className="font-semibold mb-2">Next Step: Submit Applications</h3>
-            <p className="text-sm text-muted-foreground">
-              You're ready to submit your applications! Make sure all documents are uploaded and reviewed.
-            </p>
+              ))}
+            </div>
           </div>
         </Card>
       </section>
@@ -249,6 +238,7 @@ export default function Dashboard() {
             <Button 
               className="w-full justify-start rounded-xl h-12" 
               variant="outline"
+              onClick={() => navigate('/applications')}
             >
               <Plus className="w-5 h-5 mr-3" />
               Create New Application
@@ -256,6 +246,7 @@ export default function Dashboard() {
             <Button 
               className="w-full justify-start rounded-xl h-12" 
               variant="outline"
+              onClick={() => navigate('/universities')}
             >
               <GraduationCap className="w-5 h-5 mr-3" />
               Browse Universities
@@ -263,6 +254,7 @@ export default function Dashboard() {
             <Button 
               className="w-full justify-start rounded-xl h-12" 
               variant="outline"
+              onClick={() => navigate('/documents')}
             >
               <FileText className="w-5 h-5 mr-3" />
               Upload Documents

@@ -13,6 +13,8 @@ import Documents from "./pages/Documents";
 import Resources from "./pages/Resources";
 import AITools from "./pages/AITools";
 import Profile from "./pages/Profile";
+import ProfileBuilder from "./pages/ProfileBuilder";
+import Settings from "./pages/Settings"; // Fixed: Import the actual Settings component
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +36,8 @@ const App = () => (
             <Route path="resources" element={<Resources />} />
             <Route path="ai-tools" element={<AITools />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="profilebuilder" element={<ProfileBuilder />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

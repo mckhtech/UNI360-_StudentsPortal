@@ -184,7 +184,7 @@ export default function Documents() {
         </Card>
       </motion.div>
 
-      {/* Bulk Upload Zone */}
+      {/* Bulk Upload Zone
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -212,7 +212,7 @@ export default function Documents() {
             </Button>
           </div>
         </Card>
-      </motion.div>
+      </motion.div> */}
 
       {/* Documents Tabs */}
       <motion.div

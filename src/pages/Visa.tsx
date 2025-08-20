@@ -4,7 +4,6 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CountryToggle } from "@/components/ui/country-toggle";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle,
@@ -179,11 +178,10 @@ const advisorContacts = {
 
 export default function Visa() {
   const { selectedCountry } = useOutletContext<ContextType>();
-  const [localCountry, setLocalCountry] = useState<Country>(selectedCountry);
   
-  const steps = visaProcessSteps[localCountry];
-  const appointments = upcomingAppointments[localCountry] || [];
-  const advisor = advisorContacts[localCountry];
+  const steps = visaProcessSteps[selectedCountry];
+  const appointments = upcomingAppointments[selectedCountry] || [];
+  const advisor = advisorContacts[selectedCountry];
 
   const getStepIcon = (status: string) => {
     switch (status) {
@@ -224,41 +222,35 @@ export default function Visa() {
 
   return (
     <motion.div 
-      className="space-y-8"
+      className="space-y-6 sm:space-y-8 px-4 sm:px-0"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
       {/* Header */}
       <motion.div 
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        className="text-center sm:text-left"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Visa Process</h1>
-          <p className="text-muted-foreground">
-            Track your student visa application for {localCountry === "DE" ? "Germany" : "United Kingdom"}
-          </p>
-        </div>
-        <CountryToggle
-          value={localCountry}
-          onChange={setLocalCountry}
-        />
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Visa Process</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">
+          Track your student visa application for {selectedCountry === "DE" ? "Germany" : "United Kingdom"}
+        </p>
       </motion.div>
 
       {/* Process Timeline */}
       <motion.section
-        className="space-y-6"
+        className="space-y-4 sm:space-y-6"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.1 }}
       >
-        <h2 className="text-2xl font-semibold">Visa Process Steps</h2>
+        <h2 className="text-xl sm:text-2xl font-semibold">Visa Process Steps</h2>
         
         <motion.div 
-          className="space-y-4"
+          className="space-y-3 sm:space-y-4"
           variants={container}
           initial="hidden"
           animate="show"
@@ -274,37 +266,45 @@ export default function Visa() {
                 className="relative"
               >
                 <Card className={cn(
-                  "p-6 transition-all duration-standard",
+                  "p-4 sm:p-6 transition-all duration-standard",
                   step.status === "current" ? "ring-2 ring-primary/20 shadow-medium" : "hover:shadow-soft"
                 )}>
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     {/* Step Icon */}
                     <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
+                      "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0",
                       getStepColor(step.status)
                     )}>
-                      <StepIcon className="w-5 h-5" />
+                      <StepIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
 
                     {/* Step Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                        <h3 className="font-semibold text-lg">{step.title}</h3>
-                        <Badge variant={step.status === "completed" ? "default" : "outline"} className="rounded-pill">
-                          {step.timeline}
-                        </Badge>
+                      <div className="flex flex-col gap-2 mb-3">
+                        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2">
+                          <h3 className="font-semibold text-base sm:text-lg pr-2">{step.title}</h3>
+                          <Badge 
+                            variant={step.status === "completed" ? "default" : "outline"} 
+                            className="rounded-pill text-xs w-fit"
+                          >
+                            {step.timeline}
+                          </Badge>
+                        </div>
                       </div>
                       
-                      <p className="text-muted-foreground mb-4">{step.description}</p>
+                      <p className="text-sm sm:text-base text-muted-foreground mb-4 leading-relaxed">
+                        {step.description}
+                      </p>
                       
                       {step.documents.length > 0 && (
-                        <div className="space-y-2">
-                          <span className="text-sm font-medium">Required Documents:</span>
-                          <div className="flex flex-wrap gap-2">
+                        <div className="space-y-2 mb-4">
+                          <span className="text-xs sm:text-sm font-medium">Required Documents:</span>
+                          <div className="flex flex-wrap gap-1 sm:gap-2">
                             {step.documents.map((doc) => (
-                              <Badge key={doc} variant="outline" className="text-xs">
-                                <FileText className="w-3 h-3 mr-1" />
-                                {doc}
+                              <Badge key={doc} variant="outline" className="text-xs flex items-center gap-1">
+                                <FileText className="w-3 h-3" />
+                                <span className="hidden xs:inline">{doc}</span>
+                                <span className="xs:hidden">{doc.split(' ')[0]}</span>
                               </Badge>
                             ))}
                           </div>
@@ -312,14 +312,16 @@ export default function Visa() {
                       )}
 
                       {step.status === "current" && (
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <Button size="sm" className="rounded-pill">
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Documents
+                        <div className="flex flex-col xs:flex-row gap-2">
+                          <Button size="sm" className="rounded-pill text-xs sm:text-sm">
+                            <Upload className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                            <span className="hidden xs:inline">Upload Documents</span>
+                            <span className="xs:hidden">Upload</span>
                           </Button>
-                          <Button size="sm" variant="outline" className="rounded-pill">
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            View Requirements
+                          <Button size="sm" variant="outline" className="rounded-pill text-xs sm:text-sm">
+                            <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                            <span className="hidden xs:inline">View Requirements</span>
+                            <span className="xs:hidden">View</span>
                           </Button>
                         </div>
                       )}
@@ -330,7 +332,7 @@ export default function Visa() {
                 {/* Connector Line */}
                 {!isLast && (
                   <div className={cn(
-                    "absolute left-9 top-20 w-0.5 h-6 transition-colors",
+                    "absolute left-6 sm:left-9 top-16 sm:top-20 w-0.5 h-4 sm:h-6 transition-colors",
                     step.status === "completed" ? "bg-green-200" : "bg-gray-200"
                   )} />
                 )}
@@ -342,50 +344,50 @@ export default function Visa() {
 
       {/* Appointments Section */}
       <motion.section
-        className="space-y-6"
+        className="space-y-4 sm:space-y-6"
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.3 }}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold">Upcoming Appointments</h2>
-          <Button className="rounded-pill">
-            <Calendar className="w-4 h-4 mr-2" />
+        <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-3">
+          <h2 className="text-xl sm:text-2xl font-semibold">Upcoming Appointments</h2>
+          <Button className="rounded-pill text-xs sm:text-sm w-full xs:w-auto">
+            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
             Book Appointment
           </Button>
         </div>
 
         {appointments.length > 0 ? (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {appointments.map((appointment) => (
               <motion.div
                 key={appointment.id}
                 whileHover={{ scale: 1.01 }}
                 transition={{ duration: 0.2 }}
               >
-                <Card className="p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <Card className="p-4 sm:p-6">
+                  <div className="flex flex-col gap-4">
                     <div className="space-y-2">
-                      <h3 className="font-semibold text-lg">{appointment.type} Appointment</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <h3 className="font-semibold text-base sm:text-lg">{appointment.type} Appointment</h3>
+                      <div className="flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-4 text-xs sm:text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {appointment.date} at {appointment.time}
+                          <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span>{appointment.date} at {appointment.time}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          {appointment.location}
+                          <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <span className="break-words">{appointment.location}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col xs:flex-row gap-2">
                       <Badge 
                         variant={appointment.status === "confirmed" ? "default" : "outline"}
-                        className="rounded-pill"
+                        className="rounded-pill text-xs w-fit"
                       >
                         {appointment.status}
                       </Badge>
-                      <Button size="sm" variant="outline" className="rounded-pill">
+                      <Button size="sm" variant="outline" className="rounded-pill text-xs w-full xs:w-auto">
                         Reschedule
                       </Button>
                     </div>
@@ -395,13 +397,15 @@ export default function Visa() {
             ))}
           </div>
         ) : (
-          <Card className="p-8 text-center">
-            <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Appointments Scheduled</h3>
-            <p className="text-muted-foreground mb-4">
+          <Card className="p-6 sm:p-8 text-center">
+            <Calendar className="w-8 h-8 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+            <h3 className="text-base sm:text-lg font-semibold mb-2">No Appointments Scheduled</h3>
+            <p className="text-sm sm:text-base text-muted-foreground mb-4 max-w-md mx-auto">
               You'll need to book appointments for biometrics and document verification.
             </p>
-            <Button className="rounded-pill">Book Your First Appointment</Button>
+            <Button className="rounded-pill text-xs sm:text-sm w-full xs:w-auto">
+              Book Your First Appointment
+            </Button>
           </Card>
         )}
       </motion.section>
@@ -412,36 +416,36 @@ export default function Visa() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.5 }}
       >
-        <Card className="p-6 bg-gradient-subtle">
-          <h3 className="text-xl font-semibold mb-4">Your Education Advisor</h3>
-          <div className="flex flex-col sm:flex-row gap-6">
+        <Card className="p-4 sm:p-6 bg-gradient-subtle">
+          <h3 className="text-lg sm:text-xl font-semibold mb-4">Your Education Advisor</h3>
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
             <div className="flex-1 space-y-3">
               <div>
-                <span className="font-semibold text-lg">{advisor.name}</span>
-                <p className="text-muted-foreground">{advisor.title}</p>
+                <span className="font-semibold text-base sm:text-lg block">{advisor.name}</span>
+                <p className="text-sm sm:text-base text-muted-foreground">{advisor.title}</p>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">{advisor.email}</span>
+                <div className="flex items-start gap-2">
+                  <Mail className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm break-all">{advisor.email}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">{advisor.phone}</span>
+                  <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  <span className="text-xs sm:text-sm">{advisor.phone}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm">{advisor.officeHours}</span>
+                <div className="flex items-start gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm">{advisor.officeHours}</span>
                 </div>
               </div>
             </div>
-            <div className="flex sm:flex-col gap-2">
-              <Button className="rounded-pill">
-                <Mail className="w-4 h-4 mr-2" />
+            <div className="flex flex-col xs:flex-row lg:flex-col gap-2 lg:w-48">
+              <Button className="rounded-pill text-xs sm:text-sm">
+                <Mail className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                 Send Email
               </Button>
-              <Button variant="outline" className="rounded-pill">
-                <Phone className="w-4 h-4 mr-2" />
+              <Button variant="outline" className="rounded-pill text-xs sm:text-sm">
+                <Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                 Schedule Call
               </Button>
             </div>
