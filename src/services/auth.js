@@ -1,7 +1,7 @@
 import { handleApiError, getToken } from './utils.js';
 
 // Base URL for the API - Update this with your actual ngrok URL
-const BASE_URL = 'https://e456b00b708d.ngrok-free.app/api';
+const BASE_URL = 'https://3db7221c2aa9.ngrok-free.app/api';
 
 /**
  * API Helper function to handle requests with proper headers and error handling
@@ -20,9 +20,9 @@ const apiRequest = async (endpoint, options = {}) => {
     headers: {
       'Content-Type': 'application/json',
       'ngrok-skip-browser-warning': 'true',
-      ...options.headers,
+      ...(options.headers || {}),  // merge safely
     },
-    ...options,
+    body: options.body, // keep body last
   };
 
   try {
@@ -44,7 +44,16 @@ const apiRequest = async (endpoint, options = {}) => {
         } else {
           const textError = await response.text();
           console.log('Error Response Text:', textError);
-          errorData = { error: textError || `HTTP ${response.status}: ${response.statusText}` };
+          
+          // Check if it's an HTML error page (common with server errors)
+          if (textError.includes('<!DOCTYPE') || textError.includes('<html')) {
+            errorData = { 
+              error: `Server returned HTML instead of JSON. Status: ${response.status}`,
+              details: 'This usually means the API endpoint is not available or there\'s a server configuration issue.'
+            };
+          } else {
+            errorData = { error: textError || `HTTP ${response.status}: ${response.statusText}` };
+          }
         }
       } catch (e) {
         console.error('Error parsing response:', e);
@@ -89,6 +98,20 @@ const apiRequest = async (endpoint, options = {}) => {
       throw new Error(errorMessage);
     }
     
+    // Check if response is actually JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const textResponse = await response.text();
+      console.error('Non-JSON response received:', textResponse);
+      
+      // If it's HTML, it's likely an error page
+      if (textResponse.includes('<!DOCTYPE') || textResponse.includes('<html')) {
+        throw new Error('Server returned an error page instead of JSON data. Please check if the API server is running correctly.');
+      }
+      
+      throw new Error('Server did not return JSON data');
+    }
+    
     const data = await response.json();
     console.log('Success Response:', data);
     return data;
@@ -96,7 +119,7 @@ const apiRequest = async (endpoint, options = {}) => {
     console.error(`API request failed for ${endpoint}:`, error);
     
     if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-      throw new Error('Cannot connect to server. Please check if the server is running.');
+      throw new Error('Cannot connect to server. Please check if the server is running and the URL is correct.');
     }
     
     throw error;
@@ -207,7 +230,7 @@ export const registerUser = async (signUpData) => {
       username: username,
       email: signUpData.email.toLowerCase().trim(),
       password: signUpData.password,
-      password_confirm: signUpData.confirmPassword,
+      confirm_password: signUpData.confirmPassword,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
     };
@@ -215,7 +238,7 @@ export const registerUser = async (signUpData) => {
     console.log('Registration attempt with:', {
       ...requestData,
       password: '[HIDDEN]',
-      password_confirm: '[HIDDEN]'
+      confirm_password: '[HIDDEN]'
     });
 
     const response = await apiRequest('/student/auth/register/', {
@@ -460,6 +483,220 @@ export const changePassword = async (oldPassword, newPassword) => {
 
     return response;
   } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
+// ==================== APPLICATION APIs ====================
+
+/**
+ * Get all applications for the current user
+ * @returns {Promise<Array>} - Array of user applications
+ */
+export const getApplications = async () => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    const response = await apiRequest('/student/applications/', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return Array.isArray(response) ? response : [];
+  } catch (error) {
+    console.error('Error fetching applications:', error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Create a new application
+ * @param {Object} applicationData - { university, course, country }
+ * @returns {Promise<Object>} - Created application data
+ */
+export const createApplication = async (applicationData) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    if (!applicationData.university || !applicationData.course || !applicationData.country) {
+      throw new Error('University, course, and country are required');
+    }
+
+    // Validate country format
+    const validCountries = ['germany', 'united_kingdom'];
+    if (!validCountries.includes(applicationData.country.toLowerCase())) {
+      throw new Error('Invalid country. Must be "germany" or "united_kingdom"');
+    }
+
+    const requestData = {
+      university: applicationData.university,
+      course: applicationData.course,
+      country: applicationData.country.toLowerCase(),
+    };
+
+    console.log('Creating application with data:', requestData);
+
+    const response = await apiRequest('/student/applications/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.id) {
+      throw new Error('Invalid response from server. Application may not have been created.');
+    }
+
+    return response;
+  } catch (error) {
+    console.error('Error creating application:', error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Submit an application (change status from draft to submitted)
+ * @param {string} applicationId - Application ID
+ * @returns {Promise<Object>} - Submit response
+ */
+export const submitApplication = async (applicationId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    if (!applicationId) {
+      throw new Error('Application ID is required');
+    }
+
+    console.log('Submitting application:', applicationId);
+
+    const response = await apiRequest(`/student/applications/${applicationId}/submit_application/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Error submitting application:', error);
+    
+    // Handle specific error case
+    if (error.message.includes('can only be submitted when in draft status')) {
+      throw new Error('This application has already been submitted or is not in draft status.');
+    }
+    
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Get application by ID
+ * @param {string} applicationId - Application ID
+ * @returns {Promise<Object>} - Application data
+ */
+export const getApplicationById = async (applicationId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    if (!applicationId) {
+      throw new Error('Application ID is required');
+    }
+
+    const response = await apiRequest(`/student/applications/${applicationId}/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    return response;
+  } catch (error) {
+    console.error(`Error fetching application ${applicationId}:`, error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Update application data
+ * @param {string} applicationId - Application ID
+ * @param {Object} updateData - Data to update
+ * @returns {Promise<Object>} - Updated application data
+ */
+export const updateApplication = async (applicationId, updateData) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    if (!applicationId) {
+      throw new Error('Application ID is required');
+    }
+
+    console.log('Updating application:', applicationId, updateData);
+
+    const response = await apiRequest(`/student/applications/${applicationId}/`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(updateData),
+    });
+
+    return response;
+  } catch (error) {
+    console.error(`Error updating application ${applicationId}:`, error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Delete application
+ * @param {string} applicationId - Application ID
+ * @returns {Promise<void>}
+ */
+export const deleteApplication = async (applicationId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    if (!applicationId) {
+      throw new Error('Application ID is required');
+    }
+
+    console.log('Deleting application:', applicationId);
+
+    await apiRequest(`/student/applications/${applicationId}/`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+  } catch (error) {
+    console.error(`Error deleting application ${applicationId}:`, error);
     throw handleApiError(error);
   }
 };

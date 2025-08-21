@@ -1,7 +1,7 @@
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
 // Base URL for profile API endpoints - use the same as auth.js
-const BASE_URL = 'https://e456b00b708d.ngrok-free.app/api';
+const BASE_URL = 'https://3db7221c2aa9.ngrok-free.app/api';
 
 /**
  * API Helper function to handle requests with proper headers and error handling
@@ -315,5 +315,27 @@ export const clearAllProfileDrafts = () => {
   } catch (error) {
     console.error('Error clearing all profile drafts:', error);
     return false;
+  }
+};
+
+/**
+ * Get dashboard data for the student
+ * @returns {Promise<Object>} Dashboard data including applications, stats, etc.
+ */
+export const getDashboardData = async () => {
+  try {
+    const token = getToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await apiRequest('/student/profile/dashboard/', {
+      method: 'GET',
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Get dashboard data error:', error);
+    throw handleApiError(error);
   }
 };

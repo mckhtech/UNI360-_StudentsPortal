@@ -19,12 +19,15 @@ import {
   Trophy,
   Flame,
   Calendar,
-  User
+  User,
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import heroImage from "@/assets/hero-image.jpg";
 import { useAuth } from "@/contexts/AuthContext";
-import { getProfileCompletion } from "@/services/profile";
+import { getProfileCompletion, getDashboardData } from "@/services/profile";
 import { getUserUUID } from "@/services/utils";
+import { useState, useEffect } from "react";
 
 type Country = "DE" | "UK";
 
@@ -42,41 +45,60 @@ const progressSteps = [
   { step: 7, title: "Visa Processing", completed: false, current: false },
 ];
 
-const recentActivities = [
-  {
-    type: "application",
-    title: "Application submitted to TU Munich",
-    time: "2 hours ago",
-    status: "success"
-  },
-  {
-    type: "document",
-    title: "Transcript uploaded",
-    time: "1 day ago",
-    status: "success"
-  },
-  {
-    type: "reminder",
-    title: "IELTS score expires in 30 days",
-    time: "2 days ago",
-    status: "warning"
-  }
-];
-
 export default function Dashboard() {
   const { selectedCountry } = useOutletContext<ContextType>();
   const navigate = useNavigate();
   const { user } = useAuth();
   
+  // State for dashboard data
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   // Calculate profile completion
   const profileCompletion = getProfileCompletion(user);
   const userUUID = getUserUUID(user);
+  
+  // Fetch dashboard data
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getDashboardData();
+        setDashboardData(data);
+      } catch (err) {
+        console.error('Dashboard data fetch error:', err);
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  // Retry function for error state
+  const retryFetch = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getDashboardData();
+      setDashboardData(data);
+    } catch (err) {
+      setError(err.message || 'Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const countryData = {
     DE: {
       greeting: "Guten Tag! Ready for Germany? 🇩🇪",
       stats: {
-        applications: 3,
+        applications: dashboardData?.active_applications || 0,
         offers: 1,
         acceptance: 78,
         universities: "Technical University of Munich, RWTH Aachen, Heidelberg University"
@@ -91,7 +113,7 @@ export default function Dashboard() {
     UK: {
       greeting: "Hello! Ready for the UK? 🇬🇧",
       stats: {
-        applications: 2,
+        applications: dashboardData?.active_applications || 0,
         offers: 0,
         acceptance: 65,
         universities: "Imperial College London, University of Edinburgh"
@@ -108,6 +130,67 @@ export default function Dashboard() {
   const currentData = countryData[selectedCountry];
   const currentStepIndex = progressSteps.findIndex(step => step.current);
   const overallProgress = ((currentStepIndex + 1) / progressSteps.length) * 100;
+
+  // Format recent applications for display
+  const formatRecentApplications = (applications) => {
+    if (!applications || applications.length === 0) {
+      return [
+        {
+          type: "info",
+          title: "No recent applications",
+          subtitle: "Start your first application to see activity here",
+          time: "Just now",
+          status: "info"
+        }
+      ];
+    }
+
+    return applications.slice(0, 3).map((app) => {
+      const timeAgo = getTimeAgo(app.created_at);
+      const statusInfo = getApplicationStatusInfo(app.status);
+      
+      return {
+        type: "application",
+        title: `Application to ${app.university_name}`,
+        subtitle: app.course_name,
+        time: timeAgo,
+        status: statusInfo.variant,
+        priority: app.priority_level
+      };
+    });
+  };
+
+  // Helper function to get time ago
+  const getTimeAgo = (dateString) => {
+    if (!dateString) return "Recently";
+    
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMs = now - date;
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInHours < 1) return "Less than an hour ago";
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Helper function to get status info
+  const getApplicationStatusInfo = (status) => {
+    const statusMap = {
+      draft: { variant: "warning", label: "Draft" },
+      submitted: { variant: "info", label: "Submitted" },
+      under_review: { variant: "info", label: "Under Review" },
+      accepted: { variant: "success", label: "Accepted" },
+      rejected: { variant: "error", label: "Rejected" },
+      waitlisted: { variant: "warning", label: "Waitlisted" }
+    };
+    
+    return statusMap[status] || { variant: "info", label: status };
+  };
+
+  const recentApplications = formatRecentApplications(dashboardData?.recent_applications);
 
   return (
     <motion.div 
@@ -255,7 +338,7 @@ export default function Dashboard() {
         </Card>
       </section>
 
-      {/* Quick Actions & Recent Activity */}
+      {/* Quick Actions & Recent Applications */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Quick Actions */}
         <Card className="p-6">
@@ -288,24 +371,71 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        {/* Recent Activity */}
+        {/* Recent Applications */}
         <Card className="p-6">
-          <h3 className="text-xl font-semibold mb-4">Recent Activity</h3>
-          <div className="space-y-4">
-            {recentActivities.map((activity, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 rounded-xl bg-muted/50">
-                <div className={cn(
-                  "w-2 h-2 rounded-full mt-2 flex-shrink-0",
-                  activity.status === "success" ? "bg-green-500" :
-                  activity.status === "warning" ? "bg-yellow-500" : "bg-blue-500"
-                )} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm">{activity.title}</p>
-                  <p className="text-xs text-muted-foreground">{activity.time}</p>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-semibold">Recent Applications</h3>
+            {error && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={retryFetch}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+                Retry
+              </Button>
+            )}
           </div>
+          
+          {error ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="w-12 h-12 text-muted-foreground mb-4" />
+              <p className="text-sm text-muted-foreground mb-2">Failed to load applications</p>
+              <p className="text-xs text-muted-foreground">{error}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {recentApplications.map((application, index) => (
+                <div key={index} className="flex items-start gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted/70 transition-colors">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full mt-2 flex-shrink-0",
+                    application.status === "success" ? "bg-green-500" :
+                    application.status === "warning" ? "bg-yellow-500" : 
+                    application.status === "error" ? "bg-red-500" : "bg-blue-500"
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm">{application.title}</p>
+                        {application.subtitle && (
+                          <p className="text-xs text-muted-foreground mt-1">{application.subtitle}</p>
+                        )}
+                      </div>
+                      {application.priority && (
+                        <Badge variant={application.priority === 1 ? "default" : "secondary"} className="text-xs">
+                          Priority {application.priority}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{application.time}</p>
+                  </div>
+                </div>
+              ))}
+              
+              {dashboardData?.recent_applications && dashboardData.recent_applications.length > 3 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-4"
+                  onClick={() => navigate('/applications')}
+                >
+                  View All Applications
+                </Button>
+              )}
+            </div>
+          )}
         </Card>
       </section>
     </motion.div>

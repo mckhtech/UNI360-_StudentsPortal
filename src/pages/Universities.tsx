@@ -54,6 +54,7 @@ const CourseModal = ({ university, isOpen, onClose }) => {
   const [selectedDegreeType, setSelectedDegreeType] = useState('all');
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [selectedLanguage, setSelectedLanguage] = useState('all');
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen && university) {
@@ -110,6 +111,16 @@ const CourseModal = ({ university, isOpen, onClose }) => {
       return `${years}y ${remainingMonths}m`;
     }
     return `${months} months`;
+  };
+
+  const handleApplyNow = (course) => {
+    navigate('/applications', {
+      state: {
+        university: university,
+        course: course
+      }
+    });
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -285,7 +296,11 @@ const CourseModal = ({ university, isOpen, onClose }) => {
                         <Button size="sm" variant="outline" className="flex-1">
                           View Details
                         </Button>
-                        <Button size="sm" className="flex-1 bg-[#2C3539] hover:bg-[#1e2529]">
+                        <Button 
+                          size="sm" 
+                          className="flex-1 bg-[#2C3539] hover:bg-[#1e2529]"
+                          onClick={() => handleApplyNow(course)}
+                        >
                           Apply Now
                         </Button>
                       </div>
@@ -310,6 +325,7 @@ const CourseModal = ({ university, isOpen, onClose }) => {
 export default function Universities() {
   const { selectedCountry } = useOutletContext<ContextType>();
   const [activeFilter, setActiveFilter] = useState("All");
+  const navigate = useNavigate();
   
   // API data states
   const [universities, setUniversities] = useState([]);
@@ -317,7 +333,7 @@ export default function Universities() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Simple favorites using localStorage (no authentication required)
+  // Simple favorites (keep using in-memory storage for React artifact)
   const [favorites, setFavorites] = useState([]);
   const [showFavorites, setShowFavorites] = useState(false);
 
@@ -347,7 +363,6 @@ export default function Universities() {
 
   // Load initial data
   useEffect(() => {
-    loadFavorites();
     loadFilterOptions();
     loadData();
   }, []);
@@ -506,27 +521,6 @@ export default function Universities() {
     }
   };
 
-  // Load favorites from localStorage
-  const loadFavorites = () => {
-    try {
-      const savedFavorites = localStorage.getItem('universityFavorites');
-      if (savedFavorites) {
-        setFavorites(JSON.parse(savedFavorites));
-      }
-    } catch (error) {
-      console.error('Error loading favorites:', error);
-    }
-  };
-
-  // Save favorites to localStorage
-  const saveFavorites = (newFavorites) => {
-    try {
-      localStorage.setItem('universityFavorites', JSON.stringify(newFavorites));
-    } catch (error) {
-      console.error('Error saving favorites:', error);
-    }
-  };
-
   // Add to favorites
   const addToFavorites = (universityId) => {
     const university = universities.find(uni => uni.id === universityId);
@@ -534,7 +528,6 @@ export default function Universities() {
     if (university && !favorites.some(fav => fav.id === universityId)) {
       const newFavorites = [...favorites, university];
       setFavorites(newFavorites);
-      saveFavorites(newFavorites);
     }
   };
 
@@ -542,7 +535,6 @@ export default function Universities() {
   const removeFromFavorites = (universityId) => {
     const newFavorites = favorites.filter(fav => fav.id !== universityId);
     setFavorites(newFavorites);
-    saveFavorites(newFavorites);
   };
 
   // Check if university is in favorites
@@ -565,7 +557,7 @@ export default function Universities() {
       case "Low Tuition":
         filtered = filtered.filter(uni => {
           const stats = universityStats[uni.id];
-          return stats && stats.tuitionRange.min < 15000;
+          return stats && stats.tuitionRange && stats.tuitionRange.min < 15000;
         });
         break;
       case "High Acceptance":
@@ -606,7 +598,6 @@ export default function Universities() {
   // Enhanced University Card Component
   const UniversityCard = ({ university }) => {
     const [heartLoading, setHeartLoading] = useState(false);
-    const navigate = useNavigate();
     const stats = universityStats[university.id] || {};
 
     const handleHeartClick = async () => {
@@ -629,6 +620,15 @@ export default function Universities() {
     const handleLearnMore = () => {
       setSelectedUniversity(university);
       setIsModalOpen(true);
+    };
+
+    const handleApplyNow = () => {
+      navigate('/applications', {
+        state: {
+          university: university,
+          course: null // Will open modal to select course
+        }
+      });
     };
 
     return (
@@ -794,7 +794,7 @@ export default function Universities() {
               <Button
                 size="sm"
                 className="flex-1 bg-[#2C3539] hover:bg-[#1e2529] text-white font-medium px-3 py-2 rounded-lg transition-colors duration-200 text-xs"
-                onClick={() => navigate("/applications")}
+                onClick={handleApplyNow}
               >
                 Apply Now
               </Button>

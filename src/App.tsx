@@ -20,6 +20,8 @@ import NotFound from "./pages/NotFound";
 import Login from './pages/auth/Login';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Routes>
             {/* Public login route */}
             <Route path="/login" element={<Login />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
             
             {/* Protected routes - ensure ProtectedRoute wraps AppLayout, not individual routes */}
             <Route element={<ProtectedRoute />}>
