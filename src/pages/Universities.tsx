@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { Search, Filter, Heart, MapPin, Star, Users, GraduationCap } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useMemo } from "react";
+import { useOutletContext, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Search,
   Filter,
@@ -29,19 +31,10 @@ import {
 } from "lucide-react";
 import { universityAPI, courseAPI } from "@/services/api.js";
 
-interface University {
-  id: number;
-  name: string;
-  location: string;
-  country: string;
-  rating: number;
-  students: string;
-  programs: string[];
-  tuitionFee: string;
-  image: string;
-  isWishlisted: boolean;
-  acceptanceRate: string;
-  ranking: string;
+type Country = "DE" | "UK";
+
+interface ContextType {
+  selectedCountry: Country;
 }
 
 const filters = [
@@ -63,92 +56,11 @@ const CourseModal = ({ university, isOpen, onClose }) => {
   const [selectedLanguage, setSelectedLanguage] = useState("all");
   const navigate = useNavigate();
 
-  const [universities, setUniversities] = useState<University[]>([
-    {
-      id: 1,
-      name: 'Technical University of Munich',
-      location: 'Munich',
-      country: 'Germany',
-      rating: 4.8,
-      students: '45,000+',
-      programs: ['Engineering', 'Computer Science', 'Physics'],
-      tuitionFee: '€150/semester',
-      image: '/placeholder.svg',
-      isWishlisted: true,
-      acceptanceRate: '22%',
-      ranking: '#50 Global'
-    },
-    {
-      id: 2,
-      name: 'University of Cambridge',
-      location: 'Cambridge',
-      country: 'UK',
-      rating: 4.9,
-      students: '24,000+',
-      programs: ['Natural Sciences', 'Engineering', 'Medicine'],
-      tuitionFee: '£9,250/year',
-      image: '/placeholder.svg',
-      isWishlisted: false,
-      acceptanceRate: '18%',
-      ranking: '#3 Global'
-    },
-    {
-      id: 3,
-      name: 'RWTH Aachen University',
-      location: 'Aachen',
-      country: 'Germany',
-      rating: 4.6,
-      students: '47,000+',
-      programs: ['Engineering', 'Technology', 'Business'],
-      tuitionFee: '€320/semester',
-      image: '/placeholder.svg',
-      isWishlisted: true,
-      acceptanceRate: '28%',
-      ranking: '#87 Global'
-    },
-    {
-      id: 4,
-      name: 'Imperial College London',
-      location: 'London',
-      country: 'UK',
-      rating: 4.7,
-      students: '19,000+',
-      programs: ['Engineering', 'Medicine', 'Business'],
-      tuitionFee: '£32,000/year',
-      image: '/placeholder.svg',
-      isWishlisted: false,
-      acceptanceRate: '14%',
-      ranking: '#8 Global'
-    },
-    {
-      id: 5,
-      name: 'University of Stuttgart',
-      location: 'Stuttgart',
-      country: 'Germany',
-      rating: 4.5,
-      students: '28,000+',
-      programs: ['Automotive Engineering', 'Aerospace', 'Computer Science'],
-      tuitionFee: '€170/semester',
-      image: '/placeholder.svg',
-      isWishlisted: false,
-      acceptanceRate: '35%',
-      ranking: '#120 Global'
-    },
-    {
-      id: 6,
-      name: 'University of Edinburgh',
-      location: 'Edinburgh',
-      country: 'UK',
-      rating: 4.6,
-      students: '35,000+',
-      programs: ['Medicine', 'Engineering', 'Arts'],
-      tuitionFee: '£23,000/year',
-      image: '/placeholder.svg',
-      isWishlisted: true,
-      acceptanceRate: '26%',
-      ranking: '#32 Global'
+  useEffect(() => {
+    if (isOpen && university) {
+      loadCourses();
     }
-  ]);
+  }, [isOpen, university]);
 
   const loadCourses = async () => {
     try {
@@ -231,7 +143,7 @@ const CourseModal = ({ university, isOpen, onClose }) => {
     onClose();
   };
 
-  const wishlistCount = universities.filter(uni => uni.isWishlisted).length;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -272,15 +184,15 @@ const CourseModal = ({ university, isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-8 shadow-soft animate-slide-up">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Search */}
+        {/* Modal Content */}
+        <div className="flex-1 overflow-hidden">
+          {/* Filters */}
+          <div className="p-6 border-b border-gray-200 bg-gray-50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder="Search universities, programs, locations..."
+                  placeholder="Search courses..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -318,15 +230,10 @@ const CourseModal = ({ university, isOpen, onClose }) => {
                 ))}
               </select>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Results Summary */}
-        <div className="mb-6">
-          <p className="text-muted-foreground">
-            Showing {filteredUniversities.length} universities
-          </p>
-        </div>
+            <p className="text-sm text-gray-600">
+              Showing {filteredCourses.length} of {courses.length} courses
+            </p>
+          </div>
 
           {/* Courses List */}
           <div className="p-6 max-h-96 overflow-y-auto">
@@ -364,16 +271,22 @@ const CourseModal = ({ university, isOpen, onClose }) => {
                         </Badge>
                       </div>
 
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap gap-1">
-                      {university.programs.slice(0, 2).map((program) => (
-                        <Badge key={program} variant="secondary" className="text-xs">
-                          {program}
-                        </Badge>
-                      ))}
-                      {university.programs.length > 2 && (
+                      <div className="flex flex-wrap gap-2">
                         <Badge variant="outline" className="text-xs">
-                          +{university.programs.length - 2} more
+                          <BookOpen className="w-3 h-3 mr-1" />
+                          {course.subject_area}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          <Globe className="w-3 h-3 mr-1" />
+                          {course.language}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {formatDuration(course.duration_months)}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          <Calendar className="w-3 h-3 mr-1" />
+                          {course.intake_season}
                         </Badge>
                       </div>
 
@@ -989,6 +902,9 @@ export default function Universities() {
             </div>
           </div>
         </div>
+      </Card>
+    );
+  };
 
   return (
     <motion.div

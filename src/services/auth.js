@@ -700,3 +700,166 @@ export const deleteApplication = async (applicationId) => {
     throw handleApiError(error);
   }
 };
+
+// ==================== NOTIFICATIONS APIs ====================
+
+/**
+* Get all notifications for the current user
+ * @param {boolean} unreadOnly - If true, returns only unread notifications
+ * @param {string} type - Filter by notification type (e.g., 'document_request')
+ * @returns {Promise<Array>} - Array of notifications
+ */
+export const getNotifications = async (unreadOnly = false, type = null) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    // Try the student-specific endpoint first
+    let endpoint = '/student/notifications/';
+    const queryParams = new URLSearchParams();
+    
+    if (unreadOnly) {
+      queryParams.append('unread_only', 'true');
+    }
+    
+    if (type) {
+      queryParams.append('type', type);
+    }
+    
+    if (queryParams.toString()) {
+      endpoint += `?${queryParams.toString()}`;
+    }
+
+    console.log('Fetching notifications from:', endpoint);
+
+    const response = await apiRequest(endpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    // The API returns an array directly according to your documentation
+    return Array.isArray(response) ? response : [];
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    
+    // If the student endpoint doesn't work, try the generic one
+    if (error.message.includes('API endpoint not found')) {
+      try {
+        console.log('Trying alternative notifications endpoint...');
+        const alternativeResponse = await apiRequest('/notifications/', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        return Array.isArray(alternativeResponse) ? alternativeResponse : [];
+      } catch (altError) {
+        console.error('Alternative endpoint also failed:', altError);
+        // Return empty array and let the UI handle it gracefully
+        return [];
+      }
+    }
+    
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Mark a notification as read
+ * @param {string|number} notificationId - Notification ID
+ * @returns {Promise<Object>} - Response with success message
+ */
+export const markNotificationAsRead = async (notificationId) => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    if (!notificationId) {
+      throw new Error('Notification ID is required');
+    }
+
+    console.log('Marking notification as read:', notificationId);
+
+    // Try student endpoint first
+    let endpoint = `/student/notifications/${notificationId}/mark_read/`;
+    
+    try {
+      const response = await apiRequest(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      return response;
+    } catch (error) {
+      if (error.message.includes('API endpoint not found')) {
+        // Try alternative endpoint
+        endpoint = `/notifications/${notificationId}/mark_read/`;
+        const response = await apiRequest(endpoint, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        return response;
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error(`Error marking notification ${notificationId} as read:`, error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Mark all notifications as read
+ * @returns {Promise<Object>} - Response with success message
+ */
+export const markAllNotificationsAsRead = async () => {
+  try {
+    const token = getToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please log in.');
+    }
+
+    console.log('Marking all notifications as read');
+
+    // Try student endpoint first
+    let endpoint = '/student/notifications/mark_all_read/';
+    
+    try {
+      const response = await apiRequest(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      return response;
+    } catch (error) {
+      if (error.message.includes('API endpoint not found')) {
+        // Try alternative endpoint
+        endpoint = '/notifications/mark_all_read/';
+        const response = await apiRequest(endpoint, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        return response;
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error marking all notifications as read:', error);
+    throw handleApiError(error);
+  }
+};

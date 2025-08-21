@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { FloatingSidebar } from "@/components/ui/floating-sidebar";
 import { BottomNavigation } from "@/components/ui/bottom-navigation";
@@ -6,69 +6,80 @@ import { CountryToggle } from "@/components/ui/country-toggle";
 import { Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/services/auth";
 import UniLogo from "@/assets/Uni360 logo.png";
 
 type Country = "DE" | "UK";
 
 interface Notification {
-  id: string;
+  id: string | number;
   title: string;
   message: string;
-  isRead: boolean;
-  createdAt: string;
+  is_read: boolean;
+  created_at: string;
 }
-
-// Mock notifications - replace with your actual notifications state
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "Application Update",
-    message: "Your university application status has been updated",
-    isRead: false,
-    createdAt: "2025-01-20"
-  },
-  {
-    id: "2",
-    title: "New Message",
-    message: "You have received a new message from admissions",
-    isRead: true,
-    createdAt: "2025-01-19"
-  },
-  {
-    id: "3",
-    title: "Deadline Reminder",
-    message: "Application deadline approaching in 3 days",
-    isRead: false,
-    createdAt: "2025-01-18"
-  }
-];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState<Country>("DE");
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
   
   const navigate = useNavigate();
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // Fetch notifications on component mount
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
-  const handleNotificationRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notification => 
-        notification.id === id 
-          ? { ...notification, isRead: true }
-          : notification
-      )
-    );
+  const fetchNotifications = async () => {
+    try {
+      setLoadingNotifications(true);
+      setNotificationsError(null);
+      const notificationsData = await getNotifications();
+      setNotifications(notificationsData);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      setNotificationsError(error.message || 'Failed to load notifications');
+      // Keep notifications as empty array on error
+      setNotifications([]);
+    } finally {
+      setLoadingNotifications(false);
+    }
   };
 
-  const handleMarkAllRead = () => {
-    setNotifications(prev => 
-      prev.map(notification => ({ ...notification, isRead: true }))
-    );
-    setShowNotifications(false);
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const handleNotificationRead = async (id: string | number) => {
+    try {
+      await markNotificationAsRead(id);
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === id 
+            ? { ...notification, is_read: true }
+            : notification
+        )
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      // Don't show error to user for this action, just log it
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, is_read: true }))
+      );
+      setShowNotifications(false);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      // Don't show error to user for this action, just log it
+    }
   };
 
   const handleProfileClick = () => {
@@ -115,6 +126,15 @@ export function AppLayout() {
     return name.charAt(0).toUpperCase();
   };
 
+  // Format notification date
+  const formatNotificationDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch (error) {
+      return 'Invalid Date';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-subtle">
       {/* Backdrop for closing dropdowns */}
@@ -130,11 +150,11 @@ export function AppLayout() {
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-3">
-  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#2a3439" }}>
-  <img src={UniLogo} alt="Uni360 Logo" className="w-6 h-6 object-contain" />
-  </div>
-  <span className="font-bold text-xl text-foreground">Uni360</span>
-</div>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#2a3439" }}>
+              <img src={UniLogo} alt="Uni360 Logo" className="w-6 h-6 object-contain" />
+            </div>
+            <span className="font-bold text-xl text-foreground">Uni360</span>
+          </div>
 
           {/* Right Actions */}
           <div className="flex items-center gap-4">
@@ -172,7 +192,7 @@ export function AppLayout() {
                       <h3 className="font-semibold text-foreground">
                         Notifications
                       </h3>
-                      {unreadCount > 0 && (
+                      {unreadCount > 0 && !notificationsError && (
                         <button
                           onClick={handleMarkAllRead}
                           className="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
@@ -184,7 +204,24 @@ export function AppLayout() {
                   </div>
                   
                   <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
+                    {loadingNotifications ? (
+                      <div className="p-6 text-center text-muted-foreground">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50 animate-pulse" />
+                        <p>Loading notifications...</p>
+                      </div>
+                    ) : notificationsError ? (
+                      <div className="p-6 text-center text-muted-foreground">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Notifications unavailable</p>
+                        <p className="text-xs mt-1 opacity-75">Feature coming soon</p>
+                        <button
+                          onClick={fetchNotifications}
+                          className="mt-3 text-xs text-primary hover:text-primary/80 underline"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    ) : notifications.length === 0 ? (
                       <div className="p-6 text-center text-muted-foreground">
                         <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p>No notifications yet</p>
@@ -195,14 +232,14 @@ export function AppLayout() {
                           key={notification.id}
                           className={cn(
                             'p-4 border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors cursor-pointer',
-                            !notification.isRead && 'bg-primary/5 border-l-4 border-l-primary'
+                            !notification.is_read && 'bg-primary/5 border-l-4 border-l-primary'
                           )}
                           onClick={() => handleNotificationRead(notification.id)}
                         >
                           <div className="flex items-start gap-3">
                             <div className={cn(
                               'w-2 h-2 rounded-full mt-2 flex-shrink-0',
-                              notification.isRead ? 'bg-muted-foreground/30' : 'bg-primary'
+                              notification.is_read ? 'bg-muted-foreground/30' : 'bg-primary'
                             )} />
                             <div className="flex-1 min-w-0">
                               <h4 className="text-sm font-medium text-foreground mb-1">
@@ -212,7 +249,7 @@ export function AppLayout() {
                                 {notification.message}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                {new Date(notification.createdAt).toLocaleDateString()}
+                                {formatNotificationDate(notification.created_at)}
                               </p>
                             </div>
                           </div>
@@ -220,6 +257,21 @@ export function AppLayout() {
                       ))
                     )}
                   </div>
+                  
+                  {notifications.length > 5 && (
+                    <div className="p-3 border-t border-border bg-muted/30">
+                      <button 
+                        className="w-full text-center text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                        onClick={() => {
+                          setShowNotifications(false);
+                          // Navigate to full notifications page if you have one
+                          // navigate('/notifications');
+                        }}
+                      >
+                        View all notifications ({notifications.length})
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
