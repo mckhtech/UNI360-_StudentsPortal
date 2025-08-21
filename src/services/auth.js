@@ -1,7 +1,7 @@
 import { handleApiError, getToken } from './utils.js';
 
 // Base URL for the API - Update this with your actual ngrok URL
-const BASE_URL = 'https://4d19398c9a6e.ngrok-free.app/api';
+const BASE_URL = 'https://e456b00b708d.ngrok-free.app/api';
 
 /**
  * API Helper function to handle requests with proper headers and error handling
@@ -207,7 +207,7 @@ export const registerUser = async (signUpData) => {
       username: username,
       email: signUpData.email.toLowerCase().trim(),
       password: signUpData.password,
-      confirm_password: signUpData.confirmPassword,
+      password_confirm: signUpData.confirmPassword,
       first_name: firstName.trim(),
       last_name: lastName.trim(),
     };
@@ -215,7 +215,7 @@ export const registerUser = async (signUpData) => {
     console.log('Registration attempt with:', {
       ...requestData,
       password: '[HIDDEN]',
-      confirm_password: '[HIDDEN]'
+      password_confirm: '[HIDDEN]'
     });
 
     const response = await apiRequest('/student/auth/register/', {

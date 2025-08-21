@@ -17,7 +17,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext"; // Import your auth context
 
 const navigationItems = [
-  { title: "Dashboard", url: "/", icon: Home },
+  { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Applications", url: "/applications", icon: FileText },
   { title: "Universities", url: "/universities", icon: GraduationCap },
   { title: "Visa", url: "/visa", icon: Plane },
@@ -113,7 +113,7 @@ export function FloatingSidebar() {
                 isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2"
               )}
             >
-              Settings
+              Profile Settings
             </span>
           </NavLink>
           

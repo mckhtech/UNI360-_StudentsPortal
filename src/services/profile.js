@@ -1,7 +1,7 @@
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
 // Base URL for profile API endpoints - use the same as auth.js
-const BASE_URL = 'https://4d19398c9a6e.ngrok-free.app/api';
+const BASE_URL = 'https://e456b00b708d.ngrok-free.app/api';
 
 /**
  * API Helper function to handle requests with proper headers and error handling
@@ -241,7 +241,13 @@ export const getProfileCompletion = (user) => {
  */
 export const saveProfileDraft = (profileData) => {
   try {
-    localStorage.setItem('profile_draft', JSON.stringify(profileData));
+    // Get current user ID to create user-specific draft key
+    const currentUser = JSON.parse(localStorage.getItem('uni360_user') || '{}');
+    const userId = currentUser.id || currentUser.email || 'default';
+    const draftKey = `profile_draft_${userId}`;
+    
+    localStorage.setItem(draftKey, JSON.stringify(profileData));
+    console.log('Profile draft saved for user:', userId);
     return true;
   } catch (error) {
     console.error('Error saving profile draft:', error);
@@ -255,8 +261,15 @@ export const saveProfileDraft = (profileData) => {
  */
 export const getProfileDraft = () => {
   try {
-    const draft = localStorage.getItem('profile_draft');
-    return draft ? JSON.parse(draft) : null;
+    // Get current user ID to retrieve user-specific draft
+    const currentUser = JSON.parse(localStorage.getItem('uni360_user') || '{}');
+    const userId = currentUser.id || currentUser.email || 'default';
+    const draftKey = `profile_draft_${userId}`;
+    
+    const draft = localStorage.getItem(draftKey);
+    const parsedDraft = draft ? JSON.parse(draft) : null;
+    console.log('Profile draft retrieved for user:', userId, parsedDraft ? 'Found' : 'Not found');
+    return parsedDraft;
   } catch (error) {
     console.error('Error getting profile draft:', error);
     return null;
@@ -268,10 +281,39 @@ export const getProfileDraft = () => {
  */
 export const clearProfileDraft = () => {
   try {
-    localStorage.removeItem('profile_draft');
+    // Get current user ID to clear user-specific draft
+    const currentUser = JSON.parse(localStorage.getItem('uni360_user') || '{}');
+    const userId = currentUser.id || currentUser.email || 'default';
+    const draftKey = `profile_draft_${userId}`;
+    
+    localStorage.removeItem(draftKey);
+    console.log('Profile draft cleared for user:', userId);
     return true;
   } catch (error) {
     console.error('Error clearing profile draft:', error);
+    return false;
+  }
+};
+
+/**
+ * Clear all profile drafts (useful when switching users)
+ */
+export const clearAllProfileDrafts = () => {
+  try {
+    // Get all localStorage keys and remove profile drafts
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('profile_draft_')) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('All profile drafts cleared:', keysToRemove.length, 'drafts removed');
+    return true;
+  } catch (error) {
+    console.error('Error clearing all profile drafts:', error);
     return false;
   }
 };

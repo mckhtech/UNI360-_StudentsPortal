@@ -7,14 +7,9 @@ import { Input } from "@/components/ui/input";
 import { CountryToggle } from "@/components/ui/country-toggle";
 import { cn } from "@/lib/utils";
 import {
-  Search,
-  Filter,
   Plus,
-  Building2,
-  MapPin,
   Clock,
   Mail,
-  Phone,
   CheckCircle,
   AlertCircle,
   XCircle,
@@ -147,25 +142,6 @@ export default function Applications() {
         </motion.div>
       </motion.div>
 
-      {/* Search and Filters */}
-      <motion.div 
-        className="flex flex-col sm:flex-row gap-4"
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-      >
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <Input 
-            placeholder="Search universities and applications..." 
-            className="pl-10 rounded-xl"
-          />
-        </div>
-        <Button variant="outline" className="rounded-xl">
-          <Filter className="w-4 h-4 mr-2" />
-          Filters
-        </Button>
-      </motion.div>
 
       {/* Applications List */}
       <motion.div 

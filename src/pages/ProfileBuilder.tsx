@@ -5,66 +5,237 @@ import { useAuth } from '@/contexts/AuthContext';
 import { saveProfileDraft, getProfileDraft, clearProfileDraft } from '@/services/profile';
 import { useNavigate } from 'react-router-dom';
 
+// Define User interface with all required properties
+interface User {
+  id?: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  institution?: string;
+  graduationYear?: string;
+  gpa?: string;
+  gradingSystem?: string;
+  educationLevel?: string;
+  fieldOfStudy?: string;
+  ieltsOverall?: string;
+  ieltsListening?: string;
+  ieltsReading?: string;
+  ieltsWriting?: string;
+  ieltsSpeaking?: string;
+  toeflTotal?: string;
+  greTotal?: string;
+  gmatTotal?: string;
+  workExperience?: string;
+  internships?: string;
+  projects?: string;
+  certifications?: string;
+  targetCountries?: string[];
+  preferredPrograms?: string[];
+  studyLevel?: string;
+  intakePreference?: string;
+  profileCompleted?: boolean;
+}
+
+interface FormData {
+  personal: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    dateOfBirth: string;
+    nationality: string;
+  };
+  academics: {
+    educationLevel: string;
+    fieldOfStudy: string;
+    institution: string;
+    graduationYear: string;
+    gpa: string;
+    gradingSystem: string;
+  };
+  testScores: {
+    ieltsOverall: string;
+    ieltsListening: string;
+    ieltsReading: string;
+    ieltsWriting: string;
+    ieltsSpeaking: string;
+    toeflTotal: string;
+    greTotal: string;
+    gmatTotal: string;
+  };
+  experience: {
+    workExperience: string;
+    internships: string;
+    projects: string;
+    certifications: string;
+  };
+  preferences: {
+    targetCountries: string[];
+    preferredPrograms: string[];
+    studyLevel: string;
+    intakePreference: string;
+  };
+}
+
 export default function ProfileBuilder() {
   const { user, updateUserProfile } = useAuth();
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState(() => ({
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // Initialize formData with empty structure
+  const getInitialFormData = (): FormData => ({
     personal: {
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-      dateOfBirth: user?.dateOfBirth || '',
-      nationality: user?.nationality || ''
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      dateOfBirth: '',
+      nationality: ''
     },
     academics: {
-      educationLevel: user?.educationLevel || '',
-      fieldOfStudy: user?.fieldOfStudy || '',
-      institution: user?.institution || '',
-      graduationYear: user?.graduationYear || '',
-      gpa: user?.gpa || '',
-      gradingSystem: user?.gradingSystem || ''
+      educationLevel: '',
+      fieldOfStudy: '',
+      institution: '',
+      graduationYear: '',
+      gpa: '',
+      gradingSystem: ''
     },
     testScores: {
-      ieltsOverall: user?.ieltsOverall || '',
-      ieltsListening: user?.ieltsListening || '',
-      ieltsReading: user?.ieltsReading || '',
-      ieltsWriting: user?.ieltsWriting || '',
-      ieltsSpeaking: user?.ieltsSpeaking || '',
-      toeflTotal: user?.toeflTotal || '',
-      greTotal: user?.greTotal || '',
-      gmatTotal: user?.gmatTotal || ''
+      ieltsOverall: '',
+      ieltsListening: '',
+      ieltsReading: '',
+      ieltsWriting: '',
+      ieltsSpeaking: '',
+      toeflTotal: '',
+      greTotal: '',
+      gmatTotal: ''
     },
     experience: {
-      workExperience: user?.workExperience || '',
-      internships: user?.internships || '',
-      projects: user?.projects || '',
-      certifications: user?.certifications || ''
+      workExperience: '',
+      internships: '',
+      projects: '',
+      certifications: ''
     },
     preferences: {
-      targetCountries: user?.targetCountries || [],
-      preferredPrograms: user?.preferredPrograms || [],
-      studyLevel: user?.studyLevel || '',
-      intakePreference: user?.intakePreference || ''
+      targetCountries: [],
+      preferredPrograms: [],
+      studyLevel: '',
+      intakePreference: ''
     }
-  }));
+  });
+
+  const [formData, setFormData] = useState<FormData>(getInitialFormData());
+
+  // Generate graduation years from 1990 to 2025
+  const generateGraduationYears = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = currentYear; year >= 1990; year--) {
+      years.push(year.toString());
+    }
+    return years;
+  };
+
+  // Generate intake preferences for Germany and UK till 2030
+  const generateIntakePreferences = () => {
+    const intakes = [];
+    const currentYear = new Date().getFullYear();
+    
+    for (let year = currentYear; year <= 2030; year++) {
+      // German intakes: Winter (October) and Summer (April)
+      intakes.push(`Winter ${year} (Germany)`);
+      intakes.push(`Summer ${year} (Germany)`);
+      
+      // UK intakes: September, January
+      intakes.push(`September ${year} (UK)`);
+      intakes.push(`January ${year + 1} (UK)`);
+    }
+    
+    intakes.push('Flexible');
+    return intakes;
+  };
   
-  // Load draft from localStorage if exists
+  // Update formData whenever user changes
   useEffect(() => {
-    const draft = getProfileDraft();
-    if (draft && typeof draft === 'object') {
-      // Ensure all nested objects exist to prevent undefined errors
-      setFormData(prevData => ({
-        personal: { ...prevData.personal, ...(draft.personal || {}) },
-        academics: { ...prevData.academics, ...(draft.academics || {}) },
-        testScores: { ...prevData.testScores, ...(draft.testScores || {}) },
-        experience: { ...prevData.experience, ...(draft.experience || {}) },
-        preferences: { ...prevData.preferences, ...(draft.preferences || {}) }
-      }));
+    console.log('ProfileBuilder: User changed, updating form data:', user);
+    
+    if (user) {
+      // Load draft first
+      const draft = getProfileDraft();
+      
+      // Merge current user data with any saved draft
+      const updatedFormData: FormData = {
+        personal: {
+          firstName: draft?.personal?.firstName || (user as User).firstName || '',
+          lastName: draft?.personal?.lastName || (user as User).lastName || '',
+          email: draft?.personal?.email || (user as User).email || '',
+          phone: draft?.personal?.phone || (user as User).phone || '',
+          dateOfBirth: draft?.personal?.dateOfBirth || (user as User).dateOfBirth || '',
+          nationality: draft?.personal?.nationality || (user as User).nationality || ''
+        },
+        academics: {
+          educationLevel: draft?.academics?.educationLevel || (user as User).educationLevel || '',
+          fieldOfStudy: draft?.academics?.fieldOfStudy || (user as User).fieldOfStudy || '',
+          institution: draft?.academics?.institution || (user as User).institution || '',
+          graduationYear: draft?.academics?.graduationYear || (user as User).graduationYear || '',
+          gpa: draft?.academics?.gpa || (user as User).gpa || '',
+          gradingSystem: draft?.academics?.gradingSystem || (user as User).gradingSystem || ''
+        },
+        testScores: {
+          ieltsOverall: draft?.testScores?.ieltsOverall || (user as User).ieltsOverall || '',
+          ieltsListening: draft?.testScores?.ieltsListening || (user as User).ieltsListening || '',
+          ieltsReading: draft?.testScores?.ieltsReading || (user as User).ieltsReading || '',
+          ieltsWriting: draft?.testScores?.ieltsWriting || (user as User).ieltsWriting || '',
+          ieltsSpeaking: draft?.testScores?.ieltsSpeaking || (user as User).ieltsSpeaking || '',
+          toeflTotal: draft?.testScores?.toeflTotal || (user as User).toeflTotal || '',
+          greTotal: draft?.testScores?.greTotal || (user as User).greTotal || '',
+          gmatTotal: draft?.testScores?.gmatTotal || (user as User).gmatTotal || ''
+        },
+        experience: {
+          workExperience: draft?.experience?.workExperience || (user as User).workExperience || '',
+          internships: draft?.experience?.internships || (user as User).internships || '',
+          projects: draft?.experience?.projects || (user as User).projects || '',
+          certifications: draft?.experience?.certifications || (user as User).certifications || ''
+        },
+        preferences: {
+          targetCountries: draft?.preferences?.targetCountries || (user as User).targetCountries || [],
+          preferredPrograms: draft?.preferences?.preferredPrograms || (user as User).preferredPrograms || [],
+          studyLevel: draft?.preferences?.studyLevel || (user as User).studyLevel || '',
+          intakePreference: draft?.preferences?.intakePreference || (user as User).intakePreference || ''
+        }
+      };
+      
+      console.log('ProfileBuilder: Setting form data:', updatedFormData);
+      setFormData(updatedFormData);
+    } else {
+      // Reset to empty if no user
+      console.log('ProfileBuilder: No user, resetting form data');
+      setFormData(getInitialFormData());
     }
-  }, []);
+  }, [user]); // Re-run whenever user changes
+  
+  // Clear draft when user changes (new login)
+  useEffect(() => {
+    if (user) {
+      // Clear any old draft data when a new user logs in
+      const currentUserId = (user as User).id || (user as User).email;
+      const lastUserId = localStorage.getItem('last_profile_user_id');
+      
+      if (lastUserId && lastUserId !== currentUserId) {
+        console.log('ProfileBuilder: New user detected, clearing old draft');
+        clearProfileDraft();
+      }
+      
+      if (currentUserId) {
+        localStorage.setItem('last_profile_user_id', currentUserId);
+      }
+    }
+  }, [(user as User)?.id, (user as User)?.email]);
 
   const steps = [
     { id: 1, title: 'Personal Info', description: 'Basic personal information' },
@@ -76,10 +247,118 @@ export default function ProfileBuilder() {
   ];
   const progress = (currentStep / steps.length) * 100;
 
-  const handleInputChange = (section: string, field: string, value: any) => {
+  // Validation functions
+  const validatePhoneNumber = (phone: string): boolean => {
+    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
+    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+  };
+
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateNumericInput = (value: string, min?: number, max?: number): boolean => {
+    if (value === '') return true; // Allow empty values
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) return false;
+    if (min !== undefined && numValue < min) return false;
+    if (max !== undefined && numValue > max) return false;
+    return true;
+  };
+
+  const validateCurrentStep = (): boolean => {
+    const newErrors: {[key: string]: string} = {};
+    
+    switch (currentStep) {
+      case 1: // Personal Info
+        if (!formData.personal.firstName.trim()) {
+          newErrors.firstName = 'First name is required';
+        }
+        if (!formData.personal.lastName.trim()) {
+          newErrors.lastName = 'Last name is required';
+        }
+        if (!formData.personal.email.trim()) {
+          newErrors.email = 'Email is required';
+        } else if (!validateEmail(formData.personal.email)) {
+          newErrors.email = 'Please enter a valid email address';
+        }
+        if (formData.personal.phone && !validatePhoneNumber(formData.personal.phone)) {
+          newErrors.phone = 'Please enter a valid phone number';
+        }
+        break;
+        
+      case 2: // Academic Background
+        if (!formData.academics.educationLevel) {
+          newErrors.educationLevel = 'Highest qualification is required';
+        }
+        if (!formData.academics.institution.trim()) {
+          newErrors.institution = 'Institution name is required';
+        }
+        if (!formData.academics.fieldOfStudy.trim()) {
+          newErrors.fieldOfStudy = 'Field of study is required';
+        }
+        if (formData.academics.gpa && !validateNumericInput(formData.academics.gpa, 0, 10)) {
+          newErrors.gpa = 'Please enter a valid GPA (0-10)';
+        }
+        break;
+        
+      case 3: // Test Scores - Optional but must be valid if provided
+        if (formData.testScores.ieltsOverall && !validateNumericInput(formData.testScores.ieltsOverall, 0, 9)) {
+          newErrors.ieltsOverall = 'IELTS score must be between 0-9';
+        }
+        if (formData.testScores.toeflTotal && !validateNumericInput(formData.testScores.toeflTotal, 0, 120)) {
+          newErrors.toeflTotal = 'TOEFL score must be between 0-120';
+        }
+        if (formData.testScores.greTotal && !validateNumericInput(formData.testScores.greTotal, 260, 340)) {
+          newErrors.greTotal = 'GRE score must be between 260-340';
+        }
+        if (formData.testScores.gmatTotal && !validateNumericInput(formData.testScores.gmatTotal, 200, 800)) {
+          newErrors.gmatTotal = 'GMAT score must be between 200-800';
+        }
+        break;
+        
+      case 4: // Experience - Optional
+        // No required fields for experience
+        break;
+        
+      case 5: // Preferences
+        if (!formData.preferences.studyLevel) {
+          newErrors.studyLevel = 'Study level is required';
+        }
+        if (formData.preferences.targetCountries.length === 0) {
+          newErrors.targetCountries = 'Please select at least one target country';
+        }
+        if (formData.preferences.targetCountries.length > 1) {
+          newErrors.targetCountries = 'Please select only one target country';
+        }
+        if (formData.preferences.preferredPrograms.length === 0) {
+          newErrors.preferredPrograms = 'Please select at least one preferred program';
+        }
+        break;
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (section: keyof FormData, field: string, value: any) => {
+    // Handle specific validations
+    if (field === 'phone') {
+      // Only allow numbers, spaces, hyphens, parentheses, and plus sign
+      value = value.replace(/[^0-9\s\-\(\)\+]/g, '');
+    } else if (field === 'gpa' || field.includes('ielts') || field.includes('toefl') || field.includes('gre') || field.includes('gmat')) {
+      // Only allow numbers and decimal points for numeric fields
+      value = value.replace(/[^0-9\.]/g, '');
+      // Ensure only one decimal point
+      const parts = value.split('.');
+      if (parts.length > 2) {
+        value = parts[0] + '.' + parts.slice(1).join('');
+      }
+    }
+
     setFormData(prev => {
-      // Ensure the section exists before updating
-      const currentSection = prev[section as keyof typeof prev] as any;
+      const currentSection = prev[section];
       if (!currentSection) {
         console.error(`Section ${section} does not exist in formData`);
         return prev;
@@ -93,18 +372,26 @@ export default function ProfileBuilder() {
         }
       };
     });
+
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
   };
 
   const saveDraft = async () => {
     setIsSaving(true);
     try {
-      // Safety check to ensure formData structure is intact
       if (!formData || !formData.personal || !formData.academics || !formData.testScores || !formData.experience || !formData.preferences) {
         console.error('FormData structure is invalid:', formData);
         return;
       }
       
       saveProfileDraft(formData);
+      
       // Also save to backend
       const profileData = {
         firstName: formData.personal.firstName || '',
@@ -138,7 +425,9 @@ export default function ProfileBuilder() {
         projects: formData.experience.projects || '',
         certifications: formData.experience.certifications || '',
       };
+      
       await updateUserProfile(profileData);
+      console.log('ProfileBuilder: Draft saved successfully');
     } catch (error) {
       console.error('Error saving draft:', error);
     } finally {
@@ -147,9 +436,12 @@ export default function ProfileBuilder() {
   };
 
   const completeProfile = async () => {
+    if (!validateCurrentStep()) {
+      return;
+    }
+    
     setIsSaving(true);
     try {
-      // Safety check to ensure formData structure is intact
       if (!formData || !formData.personal || !formData.academics || !formData.testScores || !formData.experience || !formData.preferences) {
         console.error('FormData structure is invalid:', formData);
         return;
@@ -189,8 +481,10 @@ export default function ProfileBuilder() {
         // Mark profile as complete
         profileCompleted: true
       };
+      
       await updateUserProfile(profileData);
       clearProfileDraft();
+      console.log('ProfileBuilder: Profile completed successfully');
       setCurrentStep(6); // Go to review step
     } catch (error) {
       console.error('Error completing profile:', error);
@@ -200,6 +494,10 @@ export default function ProfileBuilder() {
   };
 
   const nextStep = () => {
+    if (!validateCurrentStep()) {
+      return;
+    }
+    
     if (currentStep < steps.length) {
       saveDraft(); // Auto-save on navigation
       setCurrentStep(currentStep + 1);
@@ -210,6 +508,13 @@ export default function ProfileBuilder() {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
+  };
+
+  const renderError = (fieldName: string) => {
+    if (errors[fieldName]) {
+      return <p className="text-red-500 text-sm mt-1">{errors[fieldName]}</p>;
+    }
+    return null;
   };
 
   const renderStepContent = () => {
@@ -239,8 +544,11 @@ export default function ProfileBuilder() {
                   placeholder="Alex"
                   value={formData.personal.firstName}
                   onChange={(e) => handleInputChange('personal', 'firstName', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.firstName ? 'border-red-500' : 'border-border'
+                  }`}
                 />
+                {renderError('firstName')}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Last Name *</label>
@@ -249,8 +557,11 @@ export default function ProfileBuilder() {
                   placeholder="Johnson"
                   value={formData.personal.lastName}
                   onChange={(e) => handleInputChange('personal', 'lastName', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.lastName ? 'border-red-500' : 'border-border'
+                  }`}
                 />
+                {renderError('lastName')}
               </div>
             </div>
             
@@ -261,8 +572,11 @@ export default function ProfileBuilder() {
                 placeholder="alex.johnson@email.com"
                 value={formData.personal.email}
                 onChange={(e) => handleInputChange('personal', 'email', e.target.value)}
-                className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                  errors.email ? 'border-red-500' : 'border-border'
+                }`}
               />
+              {renderError('email')}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -273,8 +587,11 @@ export default function ProfileBuilder() {
                   placeholder="+1 (555) 123-4567"
                   value={formData.personal.phone}
                   onChange={(e) => handleInputChange('personal', 'phone', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.phone ? 'border-red-500' : 'border-border'
+                  }`}
                 />
+                {renderError('phone')}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Date of Birth</label>
@@ -321,7 +638,9 @@ export default function ProfileBuilder() {
               <select 
                 value={formData.academics.educationLevel}
                 onChange={(e) => handleInputChange('academics', 'educationLevel', e.target.value)}
-                className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                  errors.educationLevel ? 'border-red-500' : 'border-border'
+                }`}
               >
                 <option value="">Select qualification</option>
                 <option value="High School Diploma">High School Diploma</option>
@@ -329,6 +648,7 @@ export default function ProfileBuilder() {
                 <option value="Master's Degree">Master's Degree</option>
                 <option value="PhD">PhD</option>
               </select>
+              {renderError('educationLevel')}
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -339,8 +659,11 @@ export default function ProfileBuilder() {
                   placeholder="University of California, Berkeley"
                   value={formData.academics.institution}
                   onChange={(e) => handleInputChange('academics', 'institution', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.institution ? 'border-red-500' : 'border-border'
+                  }`}
                 />
+                {renderError('institution')}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Field of Study *</label>
@@ -349,8 +672,11 @@ export default function ProfileBuilder() {
                   placeholder="Computer Science"
                   value={formData.academics.fieldOfStudy}
                   onChange={(e) => handleInputChange('academics', 'fieldOfStudy', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.fieldOfStudy ? 'border-red-500' : 'border-border'
+                  }`}
                 />
+                {renderError('fieldOfStudy')}
               </div>
             </div>
             
@@ -363,22 +689,23 @@ export default function ProfileBuilder() {
                   className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="">Select year</option>
-                  <option value="2024">2024</option>
-                  <option value="2023">2023</option>
-                  <option value="2022">2022</option>
-                  <option value="2021">2021</option>
-                  <option value="2020">2020</option>
+                  {generateGraduationYears().map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">GPA/Grade</label>
                 <input
                   type="text"
-                  placeholder="3.8/4.0"
+                  placeholder="3.8"
                   value={formData.academics.gpa}
                   onChange={(e) => handleInputChange('academics', 'gpa', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.gpa ? 'border-red-500' : 'border-border'
+                  }`}
                 />
+                {renderError('gpa')}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Grading System</label>
@@ -412,23 +739,20 @@ export default function ProfileBuilder() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Overall Band</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="9"
+                    type="text"
                     placeholder="7.5"
                     value={formData.testScores.ieltsOverall}
                     onChange={(e) => handleInputChange('testScores', 'ieltsOverall', e.target.value)}
-                    className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                      errors.ieltsOverall ? 'border-red-500' : 'border-border'
+                    }`}
                   />
+                  {renderError('ieltsOverall')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Listening</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="9"
+                    type="text"
                     placeholder="8.0"
                     value={formData.testScores.ieltsListening}
                     onChange={(e) => handleInputChange('testScores', 'ieltsListening', e.target.value)}
@@ -438,10 +762,7 @@ export default function ProfileBuilder() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Reading</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="9"
+                    type="text"
                     placeholder="7.5"
                     value={formData.testScores.ieltsReading}
                     onChange={(e) => handleInputChange('testScores', 'ieltsReading', e.target.value)}
@@ -451,10 +772,7 @@ export default function ProfileBuilder() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Writing</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="9"
+                    type="text"
                     placeholder="7.0"
                     value={formData.testScores.ieltsWriting}
                     onChange={(e) => handleInputChange('testScores', 'ieltsWriting', e.target.value)}
@@ -464,10 +782,7 @@ export default function ProfileBuilder() {
                 <div>
                   <label className="block text-sm font-medium mb-2">Speaking</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="9"
+                    type="text"
                     placeholder="7.5"
                     value={formData.testScores.ieltsSpeaking}
                     onChange={(e) => handleInputChange('testScores', 'ieltsSpeaking', e.target.value)}
@@ -483,38 +798,41 @@ export default function ProfileBuilder() {
                 <div>
                   <label className="block text-sm font-medium mb-2">TOEFL Total</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="120"
+                    type="text"
                     placeholder="100"
                     value={formData.testScores.toeflTotal}
                     onChange={(e) => handleInputChange('testScores', 'toeflTotal', e.target.value)}
-                    className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                      errors.toeflTotal ? 'border-red-500' : 'border-border'
+                    }`}
                   />
+                  {renderError('toeflTotal')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">GRE Total</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="340"
+                    type="text"
                     placeholder="320"
                     value={formData.testScores.greTotal}
                     onChange={(e) => handleInputChange('testScores', 'greTotal', e.target.value)}
-                    className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                      errors.greTotal ? 'border-red-500' : 'border-border'
+                    }`}
                   />
+                  {renderError('greTotal')}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">GMAT Total</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="800"
+                    type="text"
                     placeholder="650"
                     value={formData.testScores.gmatTotal}
                     onChange={(e) => handleInputChange('testScores', 'gmatTotal', e.target.value)}
-                    className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                      errors.gmatTotal ? 'border-red-500' : 'border-border'
+                    }`}
                   />
+                  {renderError('gmatTotal')}
                 </div>
               </div>
             </div>
@@ -585,11 +903,13 @@ export default function ProfileBuilder() {
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium mb-2">Study Level</label>
+                <label className="block text-sm font-medium mb-2">Study Level *</label>
                 <select 
                   value={formData.preferences.studyLevel}
                   onChange={(e) => handleInputChange('preferences', 'studyLevel', e.target.value)}
-                  className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className={`w-full px-4 py-3 bg-card border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                    errors.studyLevel ? 'border-red-500' : 'border-border'
+                  }`}
                 >
                   <option value="">Select study level</option>
                   <option value="Bachelor's">Bachelor's</option>
@@ -597,6 +917,7 @@ export default function ProfileBuilder() {
                   <option value="PhD">PhD</option>
                   <option value="Diploma">Diploma</option>
                 </select>
+                {renderError('studyLevel')}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Intake Preference</label>
@@ -606,28 +927,26 @@ export default function ProfileBuilder() {
                   className="w-full px-4 py-3 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="">Select intake</option>
-                  <option value="Fall 2024">Fall 2024</option>
-                  <option value="Spring 2025">Spring 2025</option>
-                  <option value="Fall 2025">Fall 2025</option>
-                  <option value="Flexible">Flexible</option>
+                  {generateIntakePreferences().map(intake => (
+                    <option key={intake} value={intake}>{intake}</option>
+                  ))}
                 </select>
               </div>
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-2">Target Countries</label>
+              <label className="block text-sm font-medium mb-2">Target Country *</label>
+              <p className="text-sm text-muted-foreground mb-3">Please select only one target country</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {['Germany', 'United Kingdom', 'United States', 'Canada', 'Australia', 'Netherlands', 'Sweden', 'Other'].map((country) => (
+                {['Germany', 'United Kingdom'].map((country) => (
                   <label key={country} className="flex items-center space-x-2">
                     <input
-                      type="checkbox"
+                      type="radio"
+                      name="targetCountry"
                       checked={formData.preferences.targetCountries.includes(country)}
                       onChange={(e) => {
-                        const countries = formData.preferences.targetCountries;
                         if (e.target.checked) {
-                          handleInputChange('preferences', 'targetCountries', [...countries, country]);
-                        } else {
-                          handleInputChange('preferences', 'targetCountries', countries.filter(c => c !== country));
+                          handleInputChange('preferences', 'targetCountries', [country]);
                         }
                       }}
                       className="rounded border-border focus:ring-2 focus:ring-primary/20"
@@ -636,10 +955,11 @@ export default function ProfileBuilder() {
                   </label>
                 ))}
               </div>
+              {renderError('targetCountries')}
             </div>
             
             <div>
-              <label className="block text-sm font-medium mb-2">Preferred Programs</label>
+              <label className="block text-sm font-medium mb-2">Preferred Programs *</label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   'Computer Science', 'Engineering', 'Business Administration', 'Data Science',
@@ -663,6 +983,7 @@ export default function ProfileBuilder() {
                   </label>
                 ))}
               </div>
+              {renderError('preferredPrograms')}
             </div>
           </motion.div>
         );
@@ -698,7 +1019,7 @@ export default function ProfileBuilder() {
               <button 
                 onClick={() => {
                   clearProfileDraft();
-                  navigate('/');
+                  navigate('/dashboard');
                 }}
                 className="bg-primary text-primary-foreground px-8 py-4 rounded-xl hover-lift press-effect font-medium text-lg"
               >

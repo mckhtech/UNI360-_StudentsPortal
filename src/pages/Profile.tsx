@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -70,8 +70,17 @@ export default function Profile() {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // Calculate profile completion
-  const profileCompletion = useMemo(() => getProfileCompletion(user), [user]);
+  // Debug logging to track user changes
+  useEffect(() => {
+    console.log('Profile component: User updated', user);
+  }, [user]);
+  
+  // Calculate profile completion - recalculates whenever user changes
+  const profileCompletion = useMemo(() => {
+    const completion = getProfileCompletion(user);
+    console.log('Profile: Calculated completion percentage:', completion);
+    return completion;
+  }, [user]);
 
   // Helper functions
   const getUserInitials = () => {
@@ -99,16 +108,32 @@ export default function Profile() {
     return "Recently";
   };
 
-  // Calculate stats from user data
-  const stats = useMemo(() => ({
-    applications: user?.applications?.length || 0,
-    documents: user?.documents?.length || 0,
-    universities: user?.favoriteUniversities?.length || 0,
-    profileCompletion: profileCompletion,
-    daysActive: user?.createdAt 
-      ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
-      : 0
-  }), [user, profileCompletion]);
+  // Calculate stats from user data - recalculates when user changes
+  const stats = useMemo(() => {
+    const calculatedStats = {
+      applications: user?.applications?.length || 0,
+      documents: user?.documents?.length || 0,
+      universities: user?.favoriteUniversities?.length || 0,
+      profileCompletion: profileCompletion,
+      daysActive: user?.createdAt 
+        ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+        : 0
+    };
+    console.log('Profile: Calculated stats:', calculatedStats);
+    return calculatedStats;
+  }, [user, profileCompletion]);
+
+  // Show loading state if no user
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 px-4 sm:px-0">
@@ -118,6 +143,7 @@ export default function Profile() {
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
+        key={`header-${user.id || user.email}`} // Re-animate when user changes
       >
         <div>
           <h1 className="text-3xl font-bold text-foreground">Profile</h1>
@@ -137,6 +163,7 @@ export default function Profile() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
+        key={`overview-${user.id || user.email}`} // Re-animate when user changes
       >
         <Card className="relative overflow-hidden">
           {/* Background Pattern */}
@@ -150,7 +177,7 @@ export default function Profile() {
               {/* Avatar */}
               <div className="relative">
                 <div className="w-24 h-24 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
-                  {user?.profilePhoto ? (
+                  {user.profilePhoto ? (
                     <img
                       src={user.profilePhoto}
                       alt={user.name || "User"}
@@ -172,12 +199,12 @@ export default function Profile() {
 
               {/* User Info */}
               <div className="flex-1 text-center sm:text-left">
-                <h2 className="text-2xl font-bold mb-1">{user?.name || "User Name"}</h2>
-                <p className="text-muted-foreground mb-3">{user?.email || "user@example.com"}</p>
+                <h2 className="text-2xl font-bold mb-1">{user.name || "User Name"}</h2>
+                <p className="text-muted-foreground mb-3">{user.email || "user@example.com"}</p>
                 
                 <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
                   <span className="px-3 py-1 bg-success/10 text-success text-sm rounded-full">
-                    {user?.isVerified ? "Verified" : "Active"}
+                    {user.isVerified ? "Verified" : "Active"}
                   </span>
                   <span className="px-3 py-1 bg-primary/10 text-primary text-sm rounded-full">
                     Profile {profileCompletion}% Complete
@@ -214,6 +241,7 @@ export default function Profile() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
+        key={`stats-${user.id || user.email}`} // Re-animate when user changes
       >
         <StatCard
           title="Profile Completion"
@@ -246,6 +274,7 @@ export default function Profile() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.3 }}
+        key={`personal-${user.id || user.email}`} // Re-animate when user changes
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold">Personal Information</h2>
@@ -264,22 +293,22 @@ export default function Profile() {
               <InfoItem
                 icon={User}
                 label="Full Name"
-                value={user?.name}
+                value={user.name}
               />
               <InfoItem
                 icon={Mail}
                 label="Email Address"
-                value={user?.email}
+                value={user.email}
               />
               <InfoItem
                 icon={Phone}
                 label="Phone Number"
-                value={user?.phone}
+                value={user.phone}
               />
               <InfoItem
                 icon={Calendar}
                 label="Date of Birth"
-                value={user?.dateOfBirth ? formatDate(user.dateOfBirth) : undefined}
+                value={user.dateOfBirth ? formatDate(user.dateOfBirth) : undefined}
               />
             </div>
           </Card>
@@ -290,22 +319,22 @@ export default function Profile() {
               <InfoItem
                 icon={Globe}
                 label="Nationality"
-                value={user?.nationality}
+                value={user.nationality}
               />
               <InfoItem
                 icon={MapPin}
                 label="Current Location"
-                value={user?.currentLocation}
+                value={user.currentLocation}
               />
               <InfoItem
                 icon={GraduationCap}
                 label="Education Level"
-                value={user?.educationLevel}
+                value={user.educationLevel}
               />
               <InfoItem
                 icon={Award}
                 label="Field of Study"
-                value={user?.fieldOfStudy}
+                value={user.fieldOfStudy}
               />
             </div>
           </Card>
@@ -317,6 +346,7 @@ export default function Profile() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.4 }}
+        key={`preferences-${user.id || user.email}`} // Re-animate when user changes
       >
         <Card>
           <h3 className="text-lg font-semibold mb-4">Study Preferences</h3>
@@ -324,7 +354,7 @@ export default function Profile() {
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-2">Target Countries</p>
               <div className="flex flex-wrap gap-2">
-                {user?.targetCountries?.length ? (
+                {user.targetCountries?.length ? (
                   user.targetCountries.map((country, index) => (
                     <span key={index} className="px-3 py-1 bg-primary/10 text-primary text-sm rounded-full">
                       {country}
@@ -341,7 +371,7 @@ export default function Profile() {
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-2">Preferred Programs</p>
               <div className="flex flex-wrap gap-2">
-                {user?.preferredPrograms?.length ? (
+                {user.preferredPrograms?.length ? (
                   user.preferredPrograms.map((program, index) => (
                     <span key={index} className="px-3 py-1 bg-accent/10 text-accent text-sm rounded-full">
                       {program}

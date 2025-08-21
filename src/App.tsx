@@ -37,7 +37,8 @@ const App = () => (
             {/* Protected routes - ensure ProtectedRoute wraps AppLayout, not individual routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<AppLayout />}>
-                <Route index element={<Dashboard />} />
+                <Route element={<Dashboard />} />
+                <Route path ="/dashboard" element={<Dashboard />} />
                 <Route path="applications" element={<Applications />} />
                 <Route path="universities" element={<Universities />} />
                 <Route path="visa" element={<Visa />} />

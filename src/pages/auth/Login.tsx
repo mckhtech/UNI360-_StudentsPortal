@@ -7,22 +7,30 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { LoginCredentials, SignUpCredentials } from '../../types/auth';
 
 const Login: React.FC = () => {
-  const { login, signUp, isLoading, error, clearError, loginWithGoogle } = useAuth();
+  const { login, signUp, isLoading, error, clearError, loginWithGoogle, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   // Toggle between login and signup
   const [isSignUp, setIsSignUp] = useState(false);
 
-  // Login state - REVERTED: back to email to match backend
+  // Login state
   const [loginCredentials, setLoginCredentials] = useState<LoginCredentials>({
-    email: '', // Changed back to email
+    email: '',
     password: '',
     rememberMe: false,
   });
 
-  // SignUp state
-  const [signUpCredentials, setSignUpCredentials] = useState<SignUpCredentials>({
-    name: '',
+  // SignUp state - modified to include firstName and lastName
+  const [signUpCredentials, setSignUpCredentials] = useState({
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -59,12 +67,16 @@ const Login: React.FC = () => {
   const validateSignUpForm = (): boolean => {
     const errors: { [key: string]: string } = {};
 
-    if (!signUpCredentials.name.trim()) {
-      errors.name = 'Full name is required';
-    } else if (signUpCredentials.name.trim().length < 2) {
-      errors.name = 'Name must be at least 2 characters';
-    } else if (!signUpCredentials.name.trim().includes(' ')) {
-      errors.name = 'Please enter both first and last name';
+    if (!signUpCredentials.firstName.trim()) {
+      errors.firstName = 'First name is required';
+    } else if (signUpCredentials.firstName.trim().length < 2) {
+      errors.firstName = 'First name must be at least 2 characters';
+    }
+
+    if (!signUpCredentials.lastName.trim()) {
+      errors.lastName = 'Last name is required';
+    } else if (signUpCredentials.lastName.trim().length < 2) {
+      errors.lastName = 'Last name must be at least 2 characters';
     }
 
     if (!signUpCredentials.email) {
@@ -105,8 +117,7 @@ const Login: React.FC = () => {
     try {
       console.log('Starting login process...');
       await login(loginCredentials);
-      console.log('Login successful, navigating to dashboard...');
-      navigate('/');
+      // Navigation will be handled by the useEffect above when isAuthenticated becomes true
     } catch (error) {
       console.error('Login failed:', error);
     }
@@ -119,17 +130,25 @@ const Login: React.FC = () => {
     if (!validateSignUpForm()) return;
 
     try {
-      console.log('Starting signup process with data:', {
-        name: signUpCredentials.name,
+      // Combine firstName and lastName into name for the SignUpCredentials type
+      const signUpData: SignUpCredentials = {
+        name: `${signUpCredentials.firstName.trim()} ${signUpCredentials.lastName.trim()}`,
         email: signUpCredentials.email,
+        password: signUpCredentials.password,
+        confirmPassword: signUpCredentials.confirmPassword,
+        acceptTerms: signUpCredentials.acceptTerms,
+      };
+
+      console.log('Starting signup process with data:', {
+        name: signUpData.name,
+        email: signUpData.email,
         password: '[hidden]',
         confirmPassword: '[hidden]',
-        acceptTerms: signUpCredentials.acceptTerms
+        acceptTerms: signUpData.acceptTerms
       });
       
-      await signUp(signUpCredentials);
-      console.log('Signup successful, navigating to dashboard...');
-      navigate('/');
+      await signUp(signUpData);
+      // Navigation will be handled by the useEffect above when isAuthenticated becomes true
     } catch (error) {
       console.error('Sign up failed:', error);
     }
@@ -144,7 +163,7 @@ const Login: React.FC = () => {
     clearError();
   };
 
-  const handleSignUpInputChange = (field: keyof SignUpCredentials, value: string | boolean) => {
+  const handleSignUpInputChange = (field: string, value: string | boolean) => {
     setSignUpCredentials(prev => ({ ...prev, [field]: value }));
     if (validationErrors[field]) {
       setValidationErrors(prev => ({ ...prev, [field]: '' }));
@@ -158,8 +177,7 @@ const Login: React.FC = () => {
       try {
         console.log('Google OAuth successful, token received');
         await loginWithGoogle(tokenResponse.access_token);
-        console.log('Google login successful, navigating to dashboard...');
-        navigate('/');
+        // Navigation will be handled by the useEffect above when isAuthenticated becomes true
       } catch (error) {
         console.error('Google auth failed:', error);
       }
@@ -276,7 +294,7 @@ const Login: React.FC = () => {
           {/* Forms */}
           <AnimatePresence mode="wait">
             {!isSignUp ? (
-              // Login Form - REVERTED: back to email
+              // Login Form
               <motion.form
                 key="login"
                 initial={{ opacity: 0, x: -20 }}
@@ -286,7 +304,7 @@ const Login: React.FC = () => {
                 onSubmit={handleLoginSubmit}
                 className="space-y-2 sm:space-y-3"
               >
-                {/* Email - REVERTED from Username */}
+                {/* Email */}
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Email Address
@@ -394,7 +412,7 @@ const Login: React.FC = () => {
                 </motion.p>
               </motion.form>
             ) : (
-              // Sign Up Form remains the same
+              // Sign Up Form
               <motion.form
                 key="signup"
                 initial={{ opacity: 0, x: 20 }}
@@ -404,28 +422,55 @@ const Login: React.FC = () => {
                 onSubmit={handleSignUpSubmit}
                 className="space-y-3 sm:space-y-4"
               >
-                {/* Full Name */}
-                <div className="space-y-2">
-                  <label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      id="name"
-                      type="text"
-                      placeholder="Enter your full name"
-                      value={signUpCredentials.name}
-                      onChange={(e) => handleSignUpInputChange('name', e.target.value)}
-                      disabled={isLoading}
-                      className={`pl-10 h-11 sm:h-12 w-full rounded-xl border text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        validationErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                      }`}
-                    />
+                {/* First Name and Last Name Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* First Name */}
+                  <div className="space-y-2">
+                    <label htmlFor="firstName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      First Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        id="firstName"
+                        type="text"
+                        placeholder="Enter first name"
+                        value={signUpCredentials.firstName}
+                        onChange={(e) => handleSignUpInputChange('firstName', e.target.value)}
+                        disabled={isLoading}
+                        className={`pl-10 h-11 sm:h-12 w-full rounded-xl border text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          validationErrors.firstName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                      />
+                    </div>
+                    {validationErrors.firstName && (
+                      <p className="text-red-500 text-sm">{validationErrors.firstName}</p>
+                    )}
                   </div>
-                  {validationErrors.name && (
-                    <p className="text-red-500 text-sm">{validationErrors.name}</p>
-                  )}
+
+                  {/* Last Name */}
+                  <div className="space-y-2">
+                    <label htmlFor="lastName" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Last Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        id="lastName"
+                        type="text"
+                        placeholder="Enter last name"
+                        value={signUpCredentials.lastName}
+                        onChange={(e) => handleSignUpInputChange('lastName', e.target.value)}
+                        disabled={isLoading}
+                        className={`pl-10 h-11 sm:h-12 w-full rounded-xl border text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed ${
+                          validationErrors.lastName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                      />
+                    </div>
+                    {validationErrors.lastName && (
+                      <p className="text-red-500 text-sm">{validationErrors.lastName}</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Email */}
