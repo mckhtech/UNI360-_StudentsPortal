@@ -1,5 +1,5 @@
 // Use relative URL since Vite proxy will handle the routing
-const API_BASE_URL = 'https://3db7221c2aa9.ngrok-free.app/api';
+const API_BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api';
 
 // Generic API request function
 const apiRequest = async (endpoint, options = {}) => {

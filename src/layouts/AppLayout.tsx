@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { FloatingSidebar } from "@/components/ui/floating-sidebar";
 import { BottomNavigation } from "@/components/ui/bottom-navigation";
 import { CountryToggle } from "@/components/ui/country-toggle";
@@ -7,7 +7,7 @@ import { Bell, User, Settings, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/services/auth";
-import UniLogo from "@/assets/Uni360 logo.png";
+import UniLogo from "@/assets/UNI360 lOGO (3).png";
 
 type Country = "DE" | "UK";
 
@@ -29,6 +29,7 @@ export function AppLayout() {
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Fetch notifications on component mount
   useEffect(() => {
@@ -98,6 +99,11 @@ export function AppLayout() {
     }
   };
 
+  // Handle logo click - always navigate to dashboard
+  const handleLogoClick = () => {
+    navigate('/dashboard');
+  };
+
   // Close dropdowns when clicking outside
   const handleBackdropClick = () => {
     setShowNotifications(false);
@@ -147,17 +153,25 @@ export function AppLayout() {
 
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#2a3439" }}>
-              <img src={UniLogo} alt="Uni360 Logo" className="w-6 h-6 object-contain" />
-            </div>
-            <span className="font-bold text-xl text-foreground">Uni360</span>
-          </div>
+       <div className="w-full h-16 flex items-center justify-between px-2">
+
+          {/* Logo - Now clickable and always navigates to dashboard */}
+          <div className="flex items-center">
+  <div className="w-12 h-12 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-lg flex items-end justify-center pb-1 mt-1 sm:mt-2">
+    <img 
+      src={UniLogo} 
+      alt="Uni360 Logo" 
+      className="w-10 h-10 sm:w-10 sm:h-10 md:w-14 md:h-14 object-contain" 
+    />
+  </div>
+  <span className="font-bold text-lg sm:text-xl md:text-2xl text-foreground -ml-1 sm:-ml-3">
+    <span className="hidden sm:inline">UNI360°</span>
+    <span className="sm:hidden">UNI360°</span>
+  </span>
+</div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
             <CountryToggle
               value={selectedCountry}
               onChange={setSelectedCountry}
@@ -167,7 +181,7 @@ export function AppLayout() {
             <div className="relative">
               <button 
                 className={cn(
-                  "relative p-2 rounded-xl transition-all duration-micro",
+                  "relative p-1.5 sm:p-2 rounded-xl transition-all duration-micro",
                   "text-muted-foreground hover:text-foreground hover:bg-muted",
                   showNotifications && "bg-muted text-foreground"
                 )}
@@ -176,9 +190,9 @@ export function AppLayout() {
                   setShowProfileMenu(false);
                 }}
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
                 {unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center font-medium">
+                  <div className="absolute -top-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center font-medium">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </div>
                 )}
@@ -186,16 +200,16 @@ export function AppLayout() {
 
               {/* Notifications Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
-                  <div className="p-4 border-b border-border">
+                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="p-3 sm:p-4 border-b border-border">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-foreground">
+                      <h3 className="font-semibold text-foreground text-sm sm:text-base">
                         Notifications
                       </h3>
                       {unreadCount > 0 && !notificationsError && (
                         <button
                           onClick={handleMarkAllRead}
-                          className="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
+                          className="text-xs sm:text-sm text-primary hover:text-primary/80 font-medium transition-colors"
                         >
                           Mark all as read
                         </button>
@@ -205,13 +219,13 @@ export function AppLayout() {
                   
                   <div className="max-h-80 overflow-y-auto">
                     {loadingNotifications ? (
-                      <div className="p-6 text-center text-muted-foreground">
-                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50 animate-pulse" />
-                        <p>Loading notifications...</p>
+                      <div className="p-4 sm:p-6 text-center text-muted-foreground">
+                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50 animate-pulse" />
+                        <p className="text-sm">Loading notifications...</p>
                       </div>
                     ) : notificationsError ? (
-                      <div className="p-6 text-center text-muted-foreground">
-                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <div className="p-4 sm:p-6 text-center text-muted-foreground">
+                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">Notifications unavailable</p>
                         <p className="text-xs mt-1 opacity-75">Feature coming soon</p>
                         <button
@@ -222,21 +236,21 @@ export function AppLayout() {
                         </button>
                       </div>
                     ) : notifications.length === 0 ? (
-                      <div className="p-6 text-center text-muted-foreground">
-                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p>No notifications yet</p>
+                      <div className="p-4 sm:p-6 text-center text-muted-foreground">
+                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">No notifications yet</p>
                       </div>
                     ) : (
                       notifications.slice(0, 5).map((notification) => (
                         <div
                           key={notification.id}
                           className={cn(
-                            'p-4 border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors cursor-pointer',
+                            'p-3 sm:p-4 border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors cursor-pointer',
                             !notification.is_read && 'bg-primary/5 border-l-4 border-l-primary'
                           )}
                           onClick={() => handleNotificationRead(notification.id)}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-2 sm:gap-3">
                             <div className={cn(
                               'w-2 h-2 rounded-full mt-2 flex-shrink-0',
                               notification.is_read ? 'bg-muted-foreground/30' : 'bg-primary'
@@ -280,7 +294,7 @@ export function AppLayout() {
             <div className="relative">
               <button 
                 className={cn(
-                  "flex items-center gap-2 p-2 rounded-xl transition-all duration-micro",
+                  "flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 rounded-xl transition-all duration-micro",
                   "text-muted-foreground hover:text-foreground hover:bg-muted",
                   showProfileMenu && "bg-muted text-foreground"
                 )}
@@ -293,38 +307,38 @@ export function AppLayout() {
                   <img 
                     src={user.profilePhoto || user.avatar} 
                     alt={getUserName()}
-                    className="w-6 h-6 rounded-full object-cover"
+                    className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-medium">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 bg-primary rounded-full flex items-center justify-center text-white text-xs font-medium">
                     {getUserInitials()}
                   </div>
                 )}
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 hidden sm:block" />
               </button>
 
               {/* Profile Dropdown */}
               {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-64 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-56 sm:w-64 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
                   {/* User Info */}
-                  <div className="p-4 border-b border-border">
-                    <div className="flex items-center gap-3">
+                  <div className="p-3 sm:p-4 border-b border-border">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       {user?.profilePhoto || user?.avatar ? (
                         <img 
                           src={user.profilePhoto || user.avatar} 
                           alt={getUserName()}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-medium">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-full flex items-center justify-center text-white font-medium text-sm">
                           {getUserInitials()}
                         </div>
                       )}
-                      <div>
-                        <p className="font-medium text-foreground">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground text-sm truncate">
                           {getUserName()}
                         </p>
-                        <p className="text-sm text-muted-foreground font-mono">
+                        <p className="text-xs sm:text-sm text-muted-foreground font-mono truncate">
                           {user?.uuid ? `UUID: ${user.uuid.slice(0, 8)}...` : 'UUID: Loading...'}
                         </p>
                       </div>
@@ -334,7 +348,7 @@ export function AppLayout() {
                   {/* Menu Items */}
                   <div className="p-2">
                     <button
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-muted transition-colors"
+                      className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg text-left hover:bg-muted transition-colors"
                       onClick={handleProfileClick}
                     >
                       <User className="w-4 h-4" />
@@ -344,7 +358,7 @@ export function AppLayout() {
                     <div className="border-t border-border my-2" />
                     
                     <button
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-destructive hover:bg-destructive/10 transition-colors"
+                      className="w-full flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 rounded-lg text-left text-destructive hover:bg-destructive/10 transition-colors"
                       onClick={handleLogout}
                     >
                       <LogOut className="w-4 h-4" />
@@ -361,8 +375,8 @@ export function AppLayout() {
       {/* Main Content */}
       <main className="relative">
         <FloatingSidebar />
-        <div className="md:ml-24 min-h-[calc(100vh-4rem)]">
-          <div className="container mx-auto px-6 py-8 max-w-7xl">
+        <div className="md:ml-24 min-h-[calc(100vh-3.5rem)] sm:min-h-[calc(100vh-4rem)]">
+          <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 max-w-7xl">
             <Outlet context={{ selectedCountry }} />
           </div>
         </div>

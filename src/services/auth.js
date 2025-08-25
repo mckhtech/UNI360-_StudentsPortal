@@ -1,7 +1,7 @@
 import { handleApiError, getToken } from './utils.js';
 
 // Base URL for the API - Update this with your actual ngrok URL
-const BASE_URL = 'https://3db7221c2aa9.ngrok-free.app/api';
+const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api';
 
 /**
  * API Helper function to handle requests with proper headers and error handling

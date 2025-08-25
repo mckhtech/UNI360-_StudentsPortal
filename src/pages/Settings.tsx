@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+const { useState, useEffect } = React;
 import {
   User,
   Save,
@@ -82,6 +83,7 @@ const Settings = () => {
   const { user, updateUserProfile } = useAuth();
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -140,14 +142,18 @@ const Settings = () => {
 
   const handleRemovePhoto = async () => {
     try {
-      setIsSaving(true);
+      setIsRemoving(true);
+      setProfileImage(null); // Update UI immediately
       await deleteProfilePhoto();
-      setProfileImage(null);
       await updateUserProfile({ profilePhoto: null });
     } catch (error) {
       console.error('Error removing photo:', error);
+      // Restore image if operation failed
+      if (user?.profilePhoto) {
+        setProfileImage(user.profilePhoto);
+      }
     } finally {
-      setIsSaving(false);
+      setIsRemoving(false);
     }
   };
 
@@ -260,27 +266,25 @@ const Settings = () => {
                     </p>
                     <div className="flex flex-col xs:flex-row gap-2 mt-2 sm:mt-3">
                       <label htmlFor="profile-upload-2">
-                        <Button variant="outline" size="sm" disabled={isSaving} className="cursor-pointer" as="span">
-                          {isSaving ? 'Uploading...' : profileImage ? 'Change Photo' : 'Upload Photo'}
-                        </Button>
+                        
                         <input
                           id="profile-upload-2"
                           type="file"
                           accept="image/*"
                           className="hidden"
                           onChange={handleImageUpload}
-                          disabled={isSaving}
+                          disabled={isSaving || isRemoving}
                         />
                       </label>
                       {profileImage && (
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="text-red-600 hover:text-red-700"
+                          className="text-red-600 hover:text-red-700 hover:border-red-400"
                           onClick={handleRemovePhoto}
-                          disabled={isSaving}
+                          disabled={isRemoving || isSaving}
                         >
-                          {isSaving ? 'Removing...' : 'Remove'}
+                          {isRemoving ? 'Removing...' : 'Remove'}
                         </Button>
                       )}
                     </div>

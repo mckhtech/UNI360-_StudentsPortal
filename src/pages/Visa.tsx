@@ -427,11 +427,21 @@ export default function Visa() {
               <div className="space-y-2">
                 <div className="flex items-start gap-2">
                   <Mail className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm break-all">{advisor.email}</span>
+                  <a 
+                    href={`mailto:${advisor.email}`}
+                    className="text-xs sm:text-sm break-all text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                  >
+                    {advisor.email}
+                  </a>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-xs sm:text-sm">{advisor.phone}</span>
+                  <a 
+                    href={`tel:${advisor.phone}`}
+                    className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors cursor-pointer"
+                  >
+                    {advisor.phone}
+                  </a>
                 </div>
                 <div className="flex items-start gap-2">
                   <Clock className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -440,13 +450,10 @@ export default function Visa() {
               </div>
             </div>
             <div className="flex flex-col xs:flex-row lg:flex-col gap-2 lg:w-48">
-              <Button className="rounded-pill text-xs sm:text-sm">
-                <Mail className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                Send Email
-              </Button>
+              
               <Button variant="outline" className="rounded-pill text-xs sm:text-sm">
                 <Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                Schedule Call
+                Book 1:1 Call
               </Button>
             </div>
           </div>

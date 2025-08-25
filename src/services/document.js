@@ -1,7 +1,7 @@
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
 // Base URL for documents API endpoints
-const BASE_URL = 'https://3db7221c2aa9.ngrok-free.app/api/student';
+const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api/student';
 
 /**
  * API Helper function to handle requests with proper headers and error handling
@@ -183,23 +183,38 @@ export const uploadGermanyDocuments = async (documentsData) => {
     // Add application_id
     if (documentsData.application_id) {
       formData.append('application_id', documentsData.application_id);
+      console.log('✅ Added application_id:', documentsData.application_id);
     }
     
-    // Add document files
+    // Add document files - CHECK THESE FIELD NAMES CAREFULLY
     const documentFields = [
       'visa_application_form',
       'passport',
       'photographs', 
       'proof_of_accommodation',
+      'proof_of_financial_means', // ⚠️ Make sure this matches backend
       'flight_reservation',
       'travel_insurance'
     ];
     
+    // Debug: Log what we're trying to upload
+    console.log('🔍 Attempting to upload files:');
+    console.log('documentsData keys:', Object.keys(documentsData));
+    
     documentFields.forEach(field => {
       if (documentsData[field]) {
         formData.append(field, documentsData[field]);
+        console.log(`✅ Added ${field}:`, documentsData[field].name);
+      } else {
+        console.log(`❌ Missing ${field}`);
       }
     });
+
+    // Debug: Log FormData contents
+    console.log('📋 FormData contents:');
+    for (let pair of formData.entries()) {
+      console.log(pair[0] + ':', pair[1]);
+    }
 
     const response = await apiRequest('/germany-documents/upload_documents/', {
       method: 'POST',

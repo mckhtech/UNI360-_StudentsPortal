@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { Search, Bookmark, ExternalLink, Filter, Tag } from 'lucide-react';
+import { Search, ExternalLink, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function Resources() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [savedResources, setSavedResources] = useState<number[]>([1, 3]);
 
   const categories = [
-    { id: 'all', label: 'All Resources', count: 15 },
+    { id: 'all', label: 'All Resources', count: 17 },
+    { id: 'services', label: 'Services', count: 2 },
     { id: 'guides', label: 'Study Guides', count: 6 },
     { id: 'checklists', label: 'Checklists', count: 4 },
     { id: 'scholarships', label: 'Scholarships', count: 3 },
@@ -18,6 +18,30 @@ export default function Resources() {
   const resources = [
     {
       id: 1,
+      title: 'Document Translation Services',
+      description: 'Professional translation services for academic documents, certificates, and official papers required for study abroad applications. Get certified translations for your university applications.',
+      category: 'services',
+      type: 'Service',
+      readTime: 'Quick service',
+      tags: ['Translation', 'Documents', 'Certified'],
+      featured: true,
+      isService: true,
+      redirectLink: '#'
+    },
+    {
+      id: 2,
+      title: 'Accommodation Assistance',
+      description: 'We provide accommodation help to find suitable housing in Germany and UK for international students. Find verified student-friendly accommodations near your university.',
+      category: 'services',
+      type: 'Service',
+      readTime: 'Personalized help',
+      tags: ['Germany', 'UK', 'Housing', 'Student'],
+      featured: true,
+      isService: true,
+      redirectLink: '#'
+    },
+    {
+      id: 3,
       title: 'Complete Guide to Studying in Germany',
       description: 'Comprehensive guide covering everything from applications to living in Germany',
       category: 'guides',
@@ -27,7 +51,7 @@ export default function Resources() {
       featured: true
     },
     {
-      id: 2,
+      id: 4,
       title: 'UK Student Visa Application Checklist',
       description: 'Step-by-step checklist for UK student visa applications',
       category: 'checklists',
@@ -36,7 +60,7 @@ export default function Resources() {
       tags: ['UK', 'Visa', 'Documents']
     },
     {
-      id: 3,
+      id: 5,
       title: 'DAAD Scholarships for International Students',
       description: 'Overview of German Academic Exchange Service scholarships',
       category: 'scholarships',
@@ -46,7 +70,7 @@ export default function Resources() {
       featured: true
     },
     {
-      id: 4,
+      id: 6,
       title: 'English Language Requirements Guide',
       description: 'Understanding IELTS, TOEFL, and other English proficiency tests',
       category: 'guides',
@@ -55,7 +79,7 @@ export default function Resources() {
       tags: ['IELTS', 'TOEFL', 'English']
     },
     {
-      id: 5,
+      id: 7,
       title: 'Pre-Departure Checklist',
       description: 'Essential items and tasks before traveling to study abroad',
       category: 'checklists',
@@ -71,14 +95,6 @@ export default function Resources() {
     const matchesCategory = selectedCategory === 'all' || resource.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
-
-  const toggleSaved = (id: number) => {
-    setSavedResources(prev => 
-      prev.includes(id) 
-        ? prev.filter(item => item !== id)
-        : [...prev, id]
-    );
-  };
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -116,11 +132,6 @@ export default function Resources() {
         <button className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl hover:bg-card-hover transition-colors">
           <Filter className="h-5 w-5" />
           Advanced Filters
-        </button>
-        
-        <button className="flex items-center gap-2 px-4 py-3 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors">
-          <Bookmark className="h-5 w-5" />
-          My Resources ({savedResources.length})
         </button>
       </motion.div>
 
@@ -183,7 +194,8 @@ export default function Resources() {
                 <span className={`px-3 py-1 rounded-pill text-sm font-medium ${
                   resource.type === 'Guide' ? 'bg-primary/10 text-primary' :
                   resource.type === 'Checklist' ? 'bg-success/10 text-success' :
-                  'bg-warning/10 text-warning'
+                  resource.type === 'Service' ? 'bg-primary/20 text-primary' :
+                  'bg-gunmetal/10 text-warning'
                 }`}>
                   {resource.type}
                 </span>
@@ -191,24 +203,15 @@ export default function Resources() {
                   <span className="text-lg">⭐</span>
                 )}
               </div>
-              
-              <button
-                onClick={() => toggleSaved(resource.id)}
-                className={`p-2 rounded-lg transition-all duration-180 hover-lift ${
-                  savedResources.includes(resource.id)
-                    ? 'text-primary bg-primary/10'
-                    : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
-                }`}
-              >
-                <Bookmark className={`h-5 w-5 ${savedResources.includes(resource.id) ? 'fill-current' : ''}`} />
-              </button>
             </div>
 
             {/* Content */}
             <h3 className="text-lg font-semibold mb-2">{resource.title}</h3>
             <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{resource.description}</p>
             
-            <div className="text-sm text-muted-foreground mb-4">{resource.readTime}</div>
+            <div className="text-sm text-muted-foreground mb-4">
+              {resource.readTime}
+            </div>
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1 mb-4">
@@ -223,52 +226,19 @@ export default function Resources() {
             </div>
 
             {/* Action */}
-            <button className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl hover-lift press-effect font-medium">
-              Read More
+            <button 
+              onClick={() => resource.isService && resource.redirectLink ? window.open(resource.redirectLink, '_blank') : null}
+              className="w-full flex items-center justify-center  gap-2 bg-primary text-primary-foreground py-3  rounded-xl hover-lift press-effect font-medium"
+            >
+              {resource.isService ? (
+                resource.type === 'Service' && resource.title.includes('Translation') ? 'Get Translation Quote' :
+                resource.type === 'Service' && resource.title.includes('Accommodation') ? 'Accommodation Assistance' :
+                'Get Service'
+              ) : 'Read More'}
               <ExternalLink className="h-4 w-4" />
             </button>
           </motion.div>
         ))}
-      </motion.div>
-
-      {/* My Resources Section */}
-      <motion.div
-        className="mt-12 glass rounded-2xl p-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.6 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">My Saved Resources</h2>
-          <span className="text-sm text-muted-foreground">{savedResources.length} items saved</span>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {savedResources.map((id) => {
-            const resource = resources.find(r => r.id === id);
-            if (!resource) return null;
-            
-            return (
-              <div key={id} className="p-4 bg-card-hover rounded-lg flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">{resource.title}</h4>
-                  <p className="text-sm text-muted-foreground">{resource.type} • {resource.readTime}</p>
-                </div>
-                <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-                  <ExternalLink className="h-4 w-4" />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        
-        {savedResources.length === 0 && (
-          <div className="text-center py-8">
-            <Bookmark className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">No saved resources yet</p>
-            <p className="text-sm text-muted-foreground">Bookmark resources to access them quickly later</p>
-          </div>
-        )}
       </motion.div>
     </div>
   );
