@@ -64,4 +64,8 @@ export interface AuthContextType {
   loginWithGoogle: (googleToken: string) => Promise<void>;
   updateUserProfile: (profileData: Partial<User>) => Promise<User>;
   profileCompletion?: number;
+  // Country selection state
+  selectedCountry: "DE" | "UK";
+  isCountryToggleDisabled: boolean;
+  setSelectedCountry: (country: "DE" | "UK") => void;
 }
