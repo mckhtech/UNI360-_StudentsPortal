@@ -921,13 +921,8 @@ const AITools = () => {
     return (
       <AnimatePresence>
         <motion.div
-<<<<<<< Updated upstream
-          className="fixed  bg-black/50 z-50 flex items-center justify-center h-screen w-screen top-0 left-0 "
-          style={{marginTop: 0, marginBottom: 0}}
-=======
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center mt-0 mb-0"
           style={{marginTop: 0, marginBottom: 0}}
->>>>>>> Stashed changes
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

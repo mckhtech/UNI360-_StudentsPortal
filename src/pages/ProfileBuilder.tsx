@@ -876,8 +876,6 @@ export default function ProfileBuilder() {
     return Object.keys(newErrors).length === 0;
   };
 
-<<<<<<< Updated upstream
-=======
   // Handle target country changes and update global country state
   const handleTargetCountryChange = (targetCountries: string[]) => {
     if (targetCountries.length === 1) {
@@ -895,7 +893,6 @@ export default function ProfileBuilder() {
     // If "Both" is selected or multiple countries, the country toggle remains enabled
   };
 
->>>>>>> Stashed changes
   const handleInputChange = (
     section: keyof FormData,
     field: string,
@@ -1700,8 +1697,6 @@ export default function ProfileBuilder() {
               <p className="text-sm text-muted-foreground mb-3">
                 Please select your target country (optional)
               </p>
-<<<<<<< Updated upstream
-=======
               {formData.preferences.targetCountries.length === 1 &&
                 formData.preferences.targetCountries[0] !== "Both" && (
                   <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1712,7 +1707,6 @@ export default function ProfileBuilder() {
                     </p>
                   </div>
                 )}
->>>>>>> Stashed changes
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {["Germany", "United Kingdom", "Both"].map((country) => (
                   <label key={country} className="flex items-center space-x-2">
@@ -1873,12 +1867,6 @@ export default function ProfileBuilder() {
                     }`}>
                     {step.title}
                   </h4>
-<<<<<<< Updated upstream
-                  <p className="text-xs text-muted-foreground leading-relaxed px-1">
-                    {step.description}
-                  </p>
-=======
->>>>>>> Stashed changes
                 </div>
               </div>
             ))}

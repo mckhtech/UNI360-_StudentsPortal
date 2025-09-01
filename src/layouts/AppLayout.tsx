@@ -354,14 +354,11 @@ export function AppLayout() {
                         <p className="font-medium text-foreground text-sm truncate">
                           {getUserName()}
                         </p>
-<<<<<<< Updated upstream
-=======
                         <p className="text-xs sm:text-sm text-muted-foreground font-mono truncate">
                           {user?.uuid
                             ? `UUID: ${user.uuid.slice(0, 8)}...`
                             : "UUID: Loading..."}
                         </p>
->>>>>>> Stashed changes
                       </div>
                     </div>
                   </div>
