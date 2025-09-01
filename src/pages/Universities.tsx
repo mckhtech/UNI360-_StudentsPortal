@@ -1078,12 +1078,8 @@ export default function Universities() {
             </select>
 
             <div className="flex flex-col items-start justify-between">
-              <span className="text-sm text-[#2C3539] font-medium whitespace-nowrap">
-                {loading
-                  ? "Loading..."
-                  : `${filteredUniversities.length} universities • ${courses.length} courses`}
-              </span>
-              <select className="h-6 w-full rounded border-gray-300 text-xs px-2 bg-white mt-1">
+
+              <select className="h-10 w-full rounded border-gray-300 text-sm px-2 bg-white ">
                 <option>Ranking (Best First)</option>
                 <option>Name (A to Z)</option>
                 <option>Match Score</option>

@@ -19,7 +19,7 @@ export default function Resources() {
     {
       id: 1,
       title: 'Document Translation Services',
-      description: 'Professional translation services for academic documents, certificates, and official papers required for study abroad applications. Get certified translations for your university applications.',
+      description: 'Professional translation services for academic documents,HRD & Apostile certificates and official papers required for study abroad applications. Get certified translations for your university applications.',
       category: 'services',
       type: 'Service',
       readTime: 'Quick service',
@@ -128,11 +128,7 @@ export default function Resources() {
             className="w-full pl-10 pr-4 py-3 bg-card border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        
-        <button className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl hover:bg-card-hover transition-colors">
-          <Filter className="h-5 w-5" />
-          Advanced Filters
-        </button>
+
       </motion.div>
 
       {/* Category Filters */}
@@ -183,7 +179,7 @@ export default function Resources() {
         {filteredResources.map((resource, index) => (
           <motion.div
             key={resource.id}
-            className={`glass rounded-2xl p-6 hover-lift ${resource.featured ? 'ring-2 ring-primary/20 bg-primary/5' : ''}`}
+            className="glass rounded-2xl p-6 hover-lift ring-2 ring-primary/20 bg-primary/5 flex flex-col"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.28, delay: index * 0.12 }}
@@ -193,42 +189,45 @@ export default function Resources() {
               <div className="flex items-center gap-2">
                 <span className={`px-3 py-1 rounded-pill text-sm font-medium ${
                   resource.type === 'Guide' ? 'bg-primary/10 text-primary' :
-                  resource.type === 'Checklist' ? 'bg-success/10 text-success' :
+                  resource.type === 'Scholarship' ? 'bg-primary/10 text-primary' :
+                  resource.type === 'Checklist' ? 'bg-primary/10 text-primary' :
                   resource.type === 'Service' ? 'bg-primary/20 text-primary' :
                   'bg-gunmetal/10 text-warning'
                 }`}>
                   {resource.type}
                 </span>
                 {resource.featured && (
-                  <span className="text-lg">⭐</span>
+                  <span className="text-lg"></span>
                 )}
               </div>
             </div>
 
             {/* Content */}
-            <h3 className="text-lg font-semibold mb-2">{resource.title}</h3>
-            <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{resource.description}</p>
-            
-            <div className="text-sm text-muted-foreground mb-4">
-              {resource.readTime}
-            </div>
+            <div className="flex-grow">
+              <h3 className="text-lg font-semibold mb-2">{resource.title}</h3>
+              <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{resource.description}</p>
+              
+              <div className="text-sm text-muted-foreground mb-4">
+                {resource.readTime}
+              </div>
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-1 mb-4">
-              {resource.tags.map((tag, tagIndex) => (
-                <span
-                  key={tagIndex}
-                  className="px-2 py-1 bg-muted rounded text-xs text-muted-foreground"
-                >
-                  {tag}
-                </span>
-              ))}
+              {/* Tags */}
+              <div className="flex flex-wrap gap-1 mb-4">
+                {resource.tags.map((tag, tagIndex) => (
+                  <span
+                    key={tagIndex}
+                    className="px-2 py-1 bg-muted rounded text-xs text-muted-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
 
             {/* Action */}
             <button 
               onClick={() => resource.isService && resource.redirectLink ? window.open(resource.redirectLink, '_blank') : null}
-              className="w-full flex items-center justify-center  gap-2 bg-primary text-primary-foreground py-3  rounded-xl hover-lift press-effect font-medium"
+              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-3 rounded-xl hover-lift press-effect font-medium"
             >
               {resource.isService ? (
                 resource.type === 'Service' && resource.title.includes('Translation') ? 'Get Translation Quote' :

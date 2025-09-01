@@ -31,11 +31,13 @@ interface ContextType {
 const defaultProgressSteps = [
   { step: 1, title: "Profile Creation", completed: true, current: false },
   { step: 2, title: "Document Upload", completed: true, current: false },
-  { step: 3, title: "University Research", completed: true, current: false },
-  { step: 4, title: "Applications", completed: false, current: true },
-  { step: 5, title: "Interviews", completed: false, current: false },
-  { step: 6, title: "Offers & Decisions", completed: false, current: false },
-  { step: 7, title: "Visa Processing", completed: false, current: false },
+  { step: 3, title: "Verification", completed: true, current: false },
+  { step: 4, title: "University Search", completed: false, current: true },
+  { step: 5, title: "Application", completed: false, current: false },
+  { step: 6, title: "Document Generation", completed: false, current: false },
+  { step: 7, title: "Block Account", completed: false, current: false },
+  { step: 8, title: "Interview", completed: false, current: false },
+  { step: 9, title: "Flywire", completed: false, current: false },
 ];
 
 // Enhanced profile completion calculation
@@ -172,39 +174,51 @@ export default function Dashboard() {
       },
       { 
         step: 2, 
-        title: "Initial Review", 
+        title: "Document Collection", 
         completed: timeline[0]?.status === 'completed', 
         current: timeline[0]?.status === 'in_progress' 
       },
       { 
         step: 3, 
-        title: "Document Collection", 
+        title: "Verification", 
         completed: timeline[1]?.status === 'completed', 
         current: timeline[1]?.status === 'in_progress' 
       },
       { 
         step: 4, 
-        title: "Verification", 
+        title: "University Search", 
         completed: timeline[2]?.status === 'completed', 
         current: timeline[2]?.status === 'in_progress' 
       },
       { 
         step: 5, 
-        title: "University Submission", 
+        title: "Application", 
         completed: timeline[3]?.status === 'completed', 
         current: timeline[3]?.status === 'in_progress' 
       },
       { 
         step: 6, 
-        title: "University Response", 
+        title: "Document Generation", 
         completed: timeline[4]?.status === 'completed', 
         current: timeline[4]?.status === 'in_progress' 
       },
       { 
         step: 7, 
-        title: "Visa Process", 
+        title: "Block Account", 
         completed: timeline[5]?.status === 'completed', 
         current: timeline[5]?.status === 'in_progress' 
+      },
+      { 
+        step: 8, 
+        title: "Interview", 
+        completed: timeline[6]?.status === 'completed', 
+        current: timeline[6]?.status === 'in_progress' 
+      },
+      { 
+        step: 9, 
+        title: "Flywire", 
+        completed: timeline[7]?.status === 'completed', 
+        current: timeline[7]?.status === 'in_progress' 
       },
     ];
 
@@ -453,7 +467,7 @@ export default function Dashboard() {
               />
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-4 mt-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-9 gap-2 sm:gap-4 mt-6">
               {progressSteps.map((step) => (
                 <div
                   key={step.step}
