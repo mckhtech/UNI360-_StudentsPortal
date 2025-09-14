@@ -108,6 +108,8 @@ export default function Dashboard() {
   const profileCompletion = calculateDetailedProfileCompletion(user);
   const userUUID = getUserUUID(user);
   const isProfileComplete = profileCompletion === 100;
+  console.log(isProfileComplete === true ? "Profile is complete" : "Profile is incomplete");
+
   
   // Extract first name from full name
   const getFirstName = (user) => {

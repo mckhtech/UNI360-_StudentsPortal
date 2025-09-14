@@ -1,6 +1,6 @@
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
-// Base URL for profile API endpoints - use the same as auth.js
+// Base URL for profile API endpoints - use Vite proxy
 const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api';
 
 /**
@@ -9,8 +9,8 @@ const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api';
 const apiRequest = async (endpoint, options = {}) => {
   let url = `${BASE_URL}${endpoint}`;
   
-  // Add ngrok bypass header as query parameter
-  if (url.includes('ngrok') && !url.includes('ngrok-skip-browser-warning')) {
+  // Add ngrok bypass header as query parameter if needed (optional with proxy)
+  if (!url.includes('ngrok-skip-browser-warning')) {
     const separator = url.includes('?') ? '&' : '?';
     url = `${url}${separator}ngrok-skip-browser-warning=true`;
   }
@@ -26,17 +26,22 @@ const apiRequest = async (endpoint, options = {}) => {
   };
 
   try {
+    console.log(`Making profile API request to: ${url}`);
     const response = await fetch(url, config);
+    
+    console.log(`API response status: ${response.status}`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error(`HTTP error! status: ${response.status}`, errorData);
       throw handleApiError(errorData);
     }
     
     const data = await response.json();
+    console.log(`Profile API response from ${endpoint}:`, data);
     return data;
   } catch (error) {
-    console.error(`API request failed for ${endpoint}:`, error);
+    console.error(`Profile API request failed for ${endpoint}:`, error);
     throw handleApiError(error);
   }
 };

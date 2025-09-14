@@ -1,6 +1,6 @@
 import { handleApiError, getToken } from './utils.js';
 
-// Base URL for the API - Update this with your actual ngrok URL
+// Base URL for the API - use Vite proxy
 const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api';
 
 /**

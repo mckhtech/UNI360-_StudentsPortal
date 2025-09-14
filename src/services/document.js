@@ -1,6 +1,6 @@
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
-// Base URL for documents API endpoints
+// Base URL for documents API endpoints - use Vite proxy
 const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api/student';
 
 /**
@@ -28,6 +28,8 @@ const apiRequest = async (endpoint, options = {}) => {
   try {
     console.log(`Making documents API request to: ${url}`);
     const response = await fetch(url, config);
+    
+    console.log(`API response status: ${response.status}`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -186,35 +188,31 @@ export const uploadGermanyDocuments = async (documentsData) => {
       console.log('✅ Added application_id:', documentsData.application_id);
     }
     
-    // Add document files - CHECK THESE FIELD NAMES CAREFULLY
+    // Add document files - Completed fields based on typical Germany visa requirements
     const documentFields = [
       'visa_application_form',
       'passport',
       'photographs', 
       'proof_of_accommodation',
-      'proof_of_financial_means', // ⚠️ Make sure this matches backend
+      'proof_of_financial_means', 
       'flight_reservation',
-      'travel_insurance'
+      'travel_insurance',
+      'proof_of_health_insurance',
+      'university_admission_letter',
+      'language_proficiency_certificate',
+      'cv',
+      'motivation_letter',
+      'letters_of_recommendation',
+      'birth_certificate',
+      'marriage_certificate',
+      'criminal_record_certificate'
     ];
-    
-    // Debug: Log what we're trying to upload
-    console.log('🔍 Attempting to upload files:');
-    console.log('documentsData keys:', Object.keys(documentsData));
     
     documentFields.forEach(field => {
       if (documentsData[field]) {
         formData.append(field, documentsData[field]);
-        console.log(`✅ Added ${field}:`, documentsData[field].name);
-      } else {
-        console.log(`❌ Missing ${field}`);
       }
     });
-
-    // Debug: Log FormData contents
-    console.log('📋 FormData contents:');
-    for (let pair of formData.entries()) {
-      console.log(pair[0] + ':', pair[1]);
-    }
 
     const response = await apiRequest('/germany-documents/upload_documents/', {
       method: 'POST',
@@ -235,19 +233,31 @@ export const uploadGermanyDocuments = async (documentsData) => {
 
 /**
  * Download UK document
- * @param {number} documentId - Document ID
- * @param {string} field - Document field name
- * @returns {Promise<Object>} Download URL and filename
+ * @param {string} documentId - Document ID
+ * @param {string} fieldName - Field name of the document
+ * @returns {Promise<Blob>} Document file blob
  */
-export const downloadUKDocument = async (documentId, field) => {
+export const downloadUKDocument = async (documentId, fieldName) => {
   try {
     const token = getToken();
     if (!token) {
       throw new Error('No authentication token found');
     }
 
-    const response = await apiRequest(`/uk-documents/${documentId}/download_document/?field=${field}`);
-    return response;
+    const response = await fetch(`${BASE_URL}/uk-documents/${documentId}/download/?field=${fieldName}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw handleApiError(errorData);
+    }
+
+    return await response.blob();
   } catch (error) {
     console.error('Download UK document error:', error);
     throw handleApiError(error);
@@ -256,19 +266,31 @@ export const downloadUKDocument = async (documentId, field) => {
 
 /**
  * Download Germany document
- * @param {number} documentId - Document ID
- * @param {string} field - Document field name
- * @returns {Promise<Object>} Download URL and filename
+ * @param {string} documentId - Document ID
+ * @param {string} fieldName - Field name of the document
+ * @returns {Promise<Blob>} Document file blob
  */
-export const downloadGermanyDocument = async (documentId, field) => {
+export const downloadGermanyDocument = async (documentId, fieldName) => {
   try {
     const token = getToken();
     if (!token) {
       throw new Error('No authentication token found');
     }
 
-    const response = await apiRequest(`/germany-documents/${documentId}/download_document/?field=${field}`);
-    return response;
+    const response = await fetch(`${BASE_URL}/germany-documents/${documentId}/download/?field=${fieldName}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw handleApiError(errorData);
+    }
+
+    return await response.blob();
   } catch (error) {
     console.error('Download Germany document error:', error);
     throw handleApiError(error);
@@ -276,64 +298,77 @@ export const downloadGermanyDocument = async (documentId, field) => {
 };
 
 /**
- * Download document (automatically determines country)
- * @param {number} documentId - Document ID
- * @param {string} field - Document field name
- * @param {string} country - Country ('uk' or 'germany')
- * @returns {Promise<Object>} Download URL and filename
+ * Download generic document
+ * @param {string} url - Document URL
+ * @returns {Promise<Blob>} Document file blob
  */
-export const downloadDocument = async (documentId, field, country) => {
-  if (country.toLowerCase() === 'uk') {
-    return downloadUKDocument(documentId, field);
-  } else if (country.toLowerCase() === 'germany') {
-    return downloadGermanyDocument(documentId, field);
-  } else {
-    throw new Error('Invalid country specified');
-  }
-};
-
-/**
- * Get all notifications
- * @param {Object} params - Query parameters (optional)
- * @returns {Promise<Array>} Array of notifications
- */
-export const getNotifications = async (params = {}) => {
+export const downloadDocument = async (url) => {
   try {
     const token = getToken();
     if (!token) {
       throw new Error('No authentication token found');
     }
 
-    const queryString = new URLSearchParams();
-    
-    // Add parameters to query string
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== '') {
-        queryString.append(key, value);
-      }
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
+      },
     });
 
-    const endpoint = `/notifications/${queryString.toString() ? `?${queryString.toString()}` : ''}`;
-    const response = await apiRequest(endpoint);
+    if (!response.ok) {
+      throw new Error('Failed to download document');
+    }
+
+    return await response.blob();
+  } catch (error) {
+    console.error('Download document error:', error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Get notifications (generic)
+ * @returns {Promise<Array>} Array of notifications
+ */
+export const getNotifications = async () => {
+  try {
+    const token = getToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await apiRequest('/notifications/');
     return Array.isArray(response) ? response : [];
   } catch (error) {
     console.error('Get notifications error:', error);
-    // Return empty array instead of throwing to prevent app crashes
     return [];
   }
 };
 
 /**
- * Get document-related notifications
- * @returns {Promise<Array>} Array of document notifications
+ * Get document notifications
+ * @returns {Promise<Array>} Array of document-related notifications
  */
 export const getDocumentNotifications = async () => {
-  return getNotifications({ type: 'document_request' });
+  try {
+    const token = getToken();
+    if (!token) {
+      throw new Error('No authentication token found');
+    }
+
+    const response = await apiRequest('/document-notifications/');
+    return Array.isArray(response) ? response : [];
+  } catch (error) {
+    console.error('Get document notifications error:', error);
+    return [];
+  }
 };
 
 /**
  * Mark notification as read
- * @param {number} notificationId - Notification ID
+ * @param {string} notificationId - Notification ID
  * @returns {Promise<Object>} Response confirmation
  */
 export const markNotificationAsRead = async (notificationId) => {

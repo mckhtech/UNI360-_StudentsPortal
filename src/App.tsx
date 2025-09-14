@@ -16,6 +16,7 @@ import Finances from "./pages/Finances";
 import Documents from "./pages/Documents";
 import Resources from "./pages/Resources";
 import AITools from "./pages/AITools";
+import AskAI from "./pages/AskAI";
 import Profile from "./pages/Profile";
 import ProfileBuilder from "./pages/ProfileBuilder";
 import Settings from "./pages/Settings";
@@ -30,16 +31,15 @@ import { useEffect } from "react";
 const queryClient = new QueryClient();
 
 const App = () => {
-  // const navigate = useNavigate();
   useEffect(() => {
     const currentPathname = window.location.pathname;
     console.log(currentPathname);
     
     if (currentPathname === "/") {
-      // navigate("/dashboard", { replace: true });
       window.location.replace("/dashboard");
     }
   }, []);
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -65,6 +65,7 @@ const App = () => {
                   <Route path="documents" element={<Documents />} />
                   <Route path="resources" element={<Resources />} />
                   <Route path="ai-tools" element={<AITools />} />
+                  <Route path="ask-ai" element={<AskAI />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="profilebuilder" element={<ProfileBuilder />} />
                   <Route path="settings" element={<Settings />} />

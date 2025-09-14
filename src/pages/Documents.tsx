@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useOutletContext } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,9 +24,27 @@ import {
   Check
 } from "lucide-react";
 
+type Country = "DE" | "UK";
+
+interface ContextType {
+  selectedCountry: Country;
+}
+
+interface Document {
+  id: string;
+  label: string;
+  required: boolean;
+  priority: "high" | "medium" | "low";
+  description: string;
+  status: "pending" | "uploaded" | "rejected";
+  uploadDate?: string;
+  fileName?: string;
+  rejectionReason?: string;
+}
+
 // Static document configurations for different countries
-const getStaticDocuments = (country) => {
-  if (country === 'germany') {
+const getStaticDocuments = (country: Country): Document[] => {
+  if (country === "DE") {
     return [
       { 
         id: 'ger_visa_app', 
@@ -167,7 +186,7 @@ const getStaticDocuments = (country) => {
   }
 };
 
-const getPriorityColor = (priority) => {
+const getPriorityColor = (priority: Document['priority']) => {
   switch (priority) {
     case "high":
       return "border-red-200 bg-red-50";
@@ -178,7 +197,7 @@ const getPriorityColor = (priority) => {
   }
 };
 
-const getStatusColor = (status) => {
+const getStatusColor = (status: Document['status']) => {
   switch (status) {
     case "uploaded":
       return "bg-green-100 text-green-800";
@@ -192,6 +211,16 @@ const getStatusColor = (status) => {
 };
 
 // Individual Document Card Component
+interface DocumentCardProps {
+  document: Document;
+  onUpload: (file: File) => void;
+  onView: (doc: Document) => void;
+  onRemove: (doc: Document) => void;
+  uploadState?: string;
+  uploadProgress?: number;
+  uploadError?: string;
+}
+
 const DocumentCard = ({ 
   document, 
   onUpload, 
@@ -200,14 +229,13 @@ const DocumentCard = ({
   uploadState,
   uploadProgress, 
   uploadError,
-  uploadedFile 
-}) => {
+}: DocumentCardProps) => {
   const isUploading = uploadState === 'uploading';
   const isUploaded = document.status === 'uploaded';
   const isRejected = document.status === 'rejected';
   const isPending = document.status === 'pending';
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       onUpload(file);
@@ -354,17 +382,23 @@ const DocumentCard = ({
 };
 
 export default function Documents() {
-  const [selectedCountry, setSelectedCountry] = useState('uk');
+  const { selectedCountry } = useOutletContext<ContextType>();
   const [requirementsModal, setRequirementsModal] = useState(false);
   
   // Upload states for individual documents
-  const [documentStates, setDocumentStates] = useState({});
-  const [uploadProgress, setUploadProgress] = useState({});
-  const [uploadedFiles, setUploadedFiles] = useState({});
-  const [uploadErrors, setUploadErrors] = useState({});
+  const [documents, setDocuments] = useState<Document[]>(getStaticDocuments(selectedCountry));
+  const [documentStates, setDocumentStates] = useState<Record<string, string>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
-  // Get documents based on selected country
-  const documents = getStaticDocuments(selectedCountry);
+  useEffect(() => {
+    setDocuments(getStaticDocuments(selectedCountry));
+    setDocumentStates({});
+    setUploadProgress({});
+    setUploadedFiles({});
+    setUploadErrors({});
+  }, [selectedCountry]);
 
   // Organize documents by status
   const documentsByStatus = {
@@ -374,7 +408,7 @@ export default function Documents() {
   };
 
   // Handle individual document upload simulation
-  const handleDocumentUpload = async (document, file) => {
+  const handleDocumentUpload = async (document: Document, file: File) => {
     const docId = document.id;
     
     try {
@@ -409,17 +443,18 @@ export default function Documents() {
 
       clearInterval(progressInterval);
       setUploadProgress(prev => ({ ...prev, [docId]: 100 }));
+      setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'uploaded', fileName: file.name, uploadDate: new Date().toISOString().split('T')[0], rejectionReason: undefined } : d));
       setUploadedFiles(prev => ({ ...prev, [docId]: file }));
-      setDocumentStates(prev => ({ ...prev, [docId]: 'uploaded' }));
+      setDocumentStates(prev => { const newState = { ...prev }; delete newState[docId]; return newState; });
 
       // Reset progress after success
       setTimeout(() => {
-        setUploadProgress(prev => ({ ...prev, [docId]: 0 }));
+        setUploadProgress(prev => { const newProg = { ...prev }; delete newProg[docId]; return newProg; });
       }, 2000);
 
     } catch (err) {
       console.error('Document upload error:', err);
-      setDocumentStates(prev => ({ ...prev, [docId]: 'pending' }));
+      setDocumentStates(prev => { const newState = { ...prev }; delete newState[docId]; return newState; });
       setUploadErrors(prev => ({ 
         ...prev, 
         [docId]: err instanceof Error ? err.message : 'Upload failed' 
@@ -428,13 +463,13 @@ export default function Documents() {
     }
   };
 
-  const handleDocumentView = (document) => {
+  const handleDocumentView = (document: Document) => {
     alert(`Viewing ${document.label} - ${document.fileName || 'document.pdf'}`);
   };
 
-  const handleDocumentRemove = (document) => {
+  const handleDocumentRemove = (document: Document) => {
     const docId = document.id;
-    setDocumentStates(prev => ({ ...prev, [docId]: 'pending' }));
+    setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'pending', fileName: undefined, uploadDate: undefined, rejectionReason: undefined } : d));
     setUploadedFiles(prev => {
       const newFiles = { ...prev };
       delete newFiles[docId];
@@ -462,34 +497,11 @@ export default function Documents() {
         <div>
           <h1 className="text-3xl font-bold mb-2">Documents</h1>
           <p className="text-muted-foreground">
-            Upload and manage your {selectedCountry.toUpperCase()} visa application documents
+            Upload and manage your {selectedCountry === 'DE' ? 'Germany' : 'UK'} visa application documents
           </p>
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Country Toggle */}
-          <div className="flex items-center gap-3 bg-white p-3 rounded-xl border">
-            <button
-              onClick={() => setSelectedCountry('uk')}
-              className={cn(
-                "px-3 py-1 rounded-lg text-sm font-medium transition-colors",
-                selectedCountry === 'uk' ? "bg-blue-100 text-blue-800" : "text-gray-600 hover:text-gray-800"
-              )}
-            >
-              🇬🇧 UK
-            </button>
-            <div className="w-px h-6 bg-gray-300"></div>
-            <button
-              onClick={() => setSelectedCountry('germany')}
-              className={cn(
-                "px-3 py-1 rounded-lg text-sm font-medium transition-colors",
-                selectedCountry === 'germany' ? "bg-blue-100 text-blue-800" : "text-gray-600 hover:text-gray-800"
-              )}
-            >
-              🇩🇪 Germany
-            </button>
-          </div>
-          
           <Button 
             variant="outline" 
             onClick={() => setRequirementsModal(true)}
@@ -505,17 +517,16 @@ export default function Documents() {
       <div className="bg-white p-4 rounded-xl border">
         <div className="flex items-center gap-4">
           <div className="text-4xl">
-            {selectedCountry === 'germany' ? '🇩🇪' : '🇬🇧'}
+            {selectedCountry === 'DE' ? '🇩🇪' : '🇬🇧'}
           </div>
           <div>
             <h2 className="text-xl font-bold">
-              {selectedCountry === 'germany' ? 'Germany Student Visa' : 'United Kingdom Student Visa'}
+              {selectedCountry === 'DE' ? 'Germany Student Visa' : 'United Kingdom Student Visa'}
             </h2>
             <p className="text-muted-foreground">
-              {selectedCountry === 'germany' 
+              {selectedCountry === 'DE' 
                 ? 'Aufenthaltserlaubnis zu Studienzwecken - Processing time: 2-8 weeks' 
-                : 'Tier 4 General Student Visa - Processing time: 3 weeks'
-              }
+                : 'Tier 4 General Student Visa - Processing time: 3 weeks'}
             </p>
           </div>
         </div>
@@ -562,7 +573,7 @@ export default function Documents() {
                 <Card className="p-8 text-center bg-white">
                   <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">All documents uploaded!</h3>
-                  <p className="text-muted-foreground">You have no pending document uploads for {selectedCountry.toUpperCase()}.</p>
+                  <p className="text-muted-foreground">You have no pending document uploads for {selectedCountry === 'DE' ? 'Germany' : 'UK'}.</p>
                 </Card>
               ) : (
                 documentsByStatus.pending.map((doc) => (
@@ -570,12 +581,11 @@ export default function Documents() {
                     key={doc.id}
                     document={doc}
                     onUpload={(file) => handleDocumentUpload(doc, file)}
-                    onView={(doc) => handleDocumentView(doc)}
-                    onRemove={(doc) => handleDocumentRemove(doc)}
-                    uploadState={documentStates[doc.id] || 'pending'}
+                    onView={handleDocumentView}
+                    onRemove={handleDocumentRemove}
+                    uploadState={documentStates[doc.id]}
                     uploadProgress={uploadProgress[doc.id]}
                     uploadError={uploadErrors[doc.id]}
-                    uploadedFile={uploadedFiles[doc.id]}
                   />
                 ))
               )}
@@ -588,7 +598,7 @@ export default function Documents() {
                 <Card className="p-8 text-center bg-white">
                   <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No documents uploaded yet</h3>
-                  <p className="text-muted-foreground">Upload your {selectedCountry.toUpperCase()} documents to see them here.</p>
+                  <p className="text-muted-foreground">Upload your {selectedCountry === 'DE' ? 'Germany' : 'UK'} documents to see them here.</p>
                 </Card>
               ) : (
                 documentsByStatus.uploaded.map((doc) => (
@@ -596,10 +606,9 @@ export default function Documents() {
                     key={doc.id}
                     document={doc}
                     onUpload={(file) => handleDocumentUpload(doc, file)}
-                    onView={(doc) => handleDocumentView(doc)}
-                    onRemove={(doc) => handleDocumentRemove(doc)}
-                    uploadState="uploaded"
-                    uploadedFile={{ name: doc.fileName, size: 2.1 * 1024 * 1024 }}
+                    onView={handleDocumentView}
+                    onRemove={handleDocumentRemove}
+                    uploadState={documentStates[doc.id]}
                   />
                 ))
               )}
@@ -612,7 +621,7 @@ export default function Documents() {
                 <Card className="p-8 text-center bg-white">
                   <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold mb-2">No re-uploads needed!</h3>
-                  <p className="text-muted-foreground">All your {selectedCountry.toUpperCase()} documents have been approved.</p>
+                  <p className="text-muted-foreground">All your {selectedCountry === 'DE' ? 'Germany' : 'UK'} documents have been approved.</p>
                 </Card>
               ) : (
                 documentsByStatus.rejected.map((doc) => (
@@ -620,9 +629,9 @@ export default function Documents() {
                     key={doc.id}
                     document={doc}
                     onUpload={(file) => handleDocumentUpload(doc, file)}
-                    onView={(doc) => handleDocumentView(doc)}
-                    onRemove={(doc) => handleDocumentRemove(doc)}
-                    uploadState="rejected"
+                    onView={handleDocumentView}
+                    onRemove={handleDocumentRemove}
+                    uploadState={documentStates[doc.id]}
                     uploadProgress={uploadProgress[doc.id]}
                     uploadError={uploadErrors[doc.id]}
                   />
@@ -639,7 +648,7 @@ export default function Documents() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Info className="w-5 h-5" />
-              {selectedCountry === 'germany' ? 'Germany' : 'UK'} Student Visa Requirements
+              {selectedCountry === 'DE' ? 'Germany' : 'UK'} Student Visa Requirements
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
@@ -647,7 +656,7 @@ export default function Documents() {
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="font-semibold text-blue-900 mb-2">General Requirements</h3>
               <ul className="space-y-2 text-sm text-blue-800">
-                {selectedCountry === 'germany' ? (
+                {selectedCountry === 'DE' ? (
                   <>
                     <li>• Valid passport with at least 6 months validity</li>
                     <li>• Proof of admission to a German university</li>
@@ -706,7 +715,7 @@ export default function Documents() {
             <div className="bg-yellow-50 p-4 rounded-lg">
               <h3 className="font-semibold text-yellow-900 mb-2">Important Notes</h3>
               <ul className="space-y-1 text-sm text-yellow-800">
-                {selectedCountry === 'germany' ? (
+                {selectedCountry === 'DE' ? (
                   <>
                     <li>• All documents must be translated into German by certified translators</li>
                     <li>• Financial proof must show funds available for at least 1 year</li>
@@ -729,26 +738,7 @@ export default function Documents() {
             <div className="bg-green-50 p-4 rounded-lg">
               <h3 className="font-semibold text-green-900 mb-2">Processing Timeline</h3>
               <div className="space-y-2 text-sm text-green-800">
-                {selectedCountry === 'germany' ? (
-                  <>
-                    <div className="flex justify-between">
-                      <span>Document submission</span>
-                      <span className="font-medium">Day 1</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Initial review</span>
-                      <span className="font-medium">Day 3-7</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Biometric appointment</span>
-                      <span className="font-medium">Day 10-14</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Decision notification</span>
-                      <span className="font-medium">Day 14-56</span>
-                    </div>
-                  </>
-                ) : (
+                {selectedCountry === 'DE' ? (
                   <>
                     <div className="flex justify-between">
                       <span>Document submission</span>
@@ -767,15 +757,34 @@ export default function Documents() {
                       <span className="font-medium">Day 15-21</span>
                     </div>
                   </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span>Document submission</span>
+                      <span className="font-medium">Day 1</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Initial review</span>
+                      <span className="font-medium">Day 3-7</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Biometric appointment</span>
+                      <span className="font-medium">Day 10-14</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Decision notification</span>
+                      <span className="font-medium">Day 14-56</span>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
 
             {/* Key Differences */}
             <div className="bg-purple-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-purple-900 mb-2">Key Differences for {selectedCountry.toUpperCase()}</h3>
+              <h3 className="font-semibold text-purple-900 mb-2">Key Differences for {selectedCountry === 'DE' ? 'Germany' : 'UK'}</h3>
               <div className="text-sm text-purple-800">
-                {selectedCountry === 'germany' ? (
+                {selectedCountry === 'DE' ? (
                   <div className="space-y-2">
                     <p><strong>Financial Requirements:</strong> €11,208 blocked account or equivalent proof</p>
                     <p><strong>Insurance:</strong> Mandatory health insurance with €30,000 minimum coverage</p>
@@ -796,6 +805,7 @@ export default function Documents() {
         </DialogContent>
       </Dialog>
 
+      {/* @ts-ignore */}
       <style jsx>{`
         @keyframes fadeInUp {
           from {

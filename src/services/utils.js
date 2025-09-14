@@ -1,5 +1,3 @@
-
-// Token storage keys
 const ACCESS_TOKEN_KEY = 'uni360_access_token';
 const REFRESH_TOKEN_KEY = 'uni360_refresh_token';
 const USER_KEY = 'uni360_user';
