@@ -430,15 +430,17 @@ export default function Applications() {
                           </div>
                         </span>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleSubmitApplication(application.id)}
-                            className="px-4 py-2 bg-[#2C3539] text-white rounded-lg hover:bg-[#1e2529] text-sm font-medium flex items-center gap-2"
-                          >
-                            <Send className="w-4 h-4" />
-                            Submit
-                          </button>
-                        </div>
+                        {key === "draft" && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleSubmitApplication(application.id)}
+                              className="px-4 py-2 bg-[#2C3539] text-white rounded-lg hover:bg-[#1e2529] text-sm font-medium flex items-center gap-2"
+                            >
+                              <Send className="w-4 h-4" />
+                              Submit
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
