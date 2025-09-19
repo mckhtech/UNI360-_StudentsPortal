@@ -1,7 +1,7 @@
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
 // Base URL for profile API endpoints - use Vite proxy
-const BASE_URL = 'https://dogfish-primary-remarkably.ngrok-free.app/api';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /**
  * API Helper function to handle requests with proper headers and error handling
