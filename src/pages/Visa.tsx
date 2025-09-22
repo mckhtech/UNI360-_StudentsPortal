@@ -32,14 +32,14 @@ interface ContextType {
 
 const visaProcessSteps = {
   DE: [
-    {
-      id: 3,
-      title: "Blocked Account",
-      description: "Open blocked account with minimum €11,208",
-      status: "current",
-      documents: ["Bank Statement", "Blocked Account Confirmation"],
-      timeline: "In Progress"
-    },
+    // {
+    //   id: 3,
+    //   title: "Blocked Account",
+    //   description: "Open blocked account with minimum €11,208",
+    //   status: "current",
+    //   documents: ["Bank Statement", "Blocked Account Confirmation"],
+    //   timeline: "In Progress"
+    // },
     {
       id: 4,
       title: "Health Insurance",

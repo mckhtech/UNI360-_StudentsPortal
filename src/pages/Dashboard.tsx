@@ -16,7 +16,7 @@ import {
   AlertCircle,
   RefreshCw
 } from "lucide-react";
-import heroImage from "@/assets/hero-image.jpg";
+import heroImage from "/assets/hero-image.jpg";
 import { useAuth } from "@/contexts/AuthContext";
 import { getProfileCompletion, getDashboardData } from "@/services/profile";
 import { getUserUUID } from "@/services/utils";

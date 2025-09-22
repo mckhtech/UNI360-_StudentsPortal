@@ -11,7 +11,7 @@ import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
 } from "@/services/auth";
-import UniLogo from "@/assets/UNI360 lOGO (3).png";
+import UniLogo from "/assets/Uni360-logo.png";
 
 type Country = "DE" | "UK";
 

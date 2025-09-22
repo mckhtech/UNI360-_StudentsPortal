@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import GermanyFlag from "@/assets/germany logo.png";
-import UKFlag from "@/assets/uk logo.png";
+import GermanyFlag from "/assets/germany-logo.png";
+import UKFlag from "/assets/uk-logo.png";
 
 type Country = "DE" | "UK";
 

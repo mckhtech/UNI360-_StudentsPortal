@@ -199,6 +199,70 @@ const Login: React.FC = () => {
 
   const passwordStrength = getPasswordStrength(signUpCredentials.password);
 
+  
+// Animation states
+// Replace the useEffect animation logic with this:
+
+// Animation states
+const [squareFlipped, setSquareFlipped] = useState(false);
+const [rectangleFlipped, setRectangleFlipped] = useState(false);
+
+useEffect(() => {
+  // Start with squares flipped, rectangles not flipped
+  setSquareFlipped(true);
+  setRectangleFlipped(false);
+  
+  const interval = setInterval(() => {
+    const now = Date.now();
+    const cycleDuration = 8000; // 8 second total cycle
+    const positionInCycle = now % cycleDuration;
+    
+    if (positionInCycle < 4000) {
+      // First 4 seconds: squares flipped, rectangles not flipped
+      setSquareFlipped(true);
+      setRectangleFlipped(false);
+    } else {
+      // Next 4 seconds: rectangles flipped, squares not flipped
+      setSquareFlipped(false);
+      setRectangleFlipped(true);
+    }
+  }, 100);
+  
+  return () => clearInterval(interval);
+}, []);
+
+const FlipCard = ({ 
+  isFlipped, 
+  frontContent, 
+  backContent, 
+  className = "" 
+}: {
+  isFlipped: boolean;
+  frontContent: React.ReactNode;
+  backContent: React.ReactNode;
+  className?: string;
+}) => {
+  return (
+    <div className={`[perspective:800px] ${className}`}>
+      <motion.div
+        animate={{ rotateY: isFlipped ? 180 : 0 }}
+        transition={{ duration: 1 }}
+        className="relative w-full h-full [transform-style:preserve-3d]"
+      >
+        {/* Front */}
+        <div className="absolute inset-0 [backface-visibility:hidden] rounded-xl overflow-hidden">
+          {frontContent}
+        </div>
+        {/* Back */}
+        <div className="absolute inset-0 [transform:rotateY(180deg)] [backface-visibility:hidden] rounded-xl overflow-hidden">
+          {backContent}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left Section - Form */}
@@ -211,28 +275,29 @@ const Login: React.FC = () => {
         <div className="w-full max-w-sm sm:max-w-md space-y-4 sm:space-y-5">
           {/* Logo and Title */}
           <div className="text-center">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="flex items-center justify-center space-x-2 sm:space-x-3 mb-4 sm:mb-6"
-            >
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#E49B0F] rounded-xl flex items-center justify-center shadow-lg">
-                <GraduationCap className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <span className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">UNI360</span>
-            </motion.div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
-              {isSignUp ? 'Create Account' : 'Welcome Back'}
-            </h1>
-            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mt-1 px-2">
-              {isSignUp 
-                ? 'Join students on their journey to Germany' 
-                : 'Sign in to continue your Study in Germany journey'
-              }
-            </p>
-          </div>
-
+  <motion.div
+    initial={{ scale: 0.8, opacity: 0 }}
+    animate={{ scale: 1, opacity: 1 }}
+    transition={{ delay: 0.2, duration: 0.5 }}
+    className="flex items-center justify-center -space-x-2 mb-3 sm:mb-4"
+  >
+    <img 
+      src="/assets/Uni360-logo.png" 
+      alt="UNI360 Logo" 
+      className="w-12 h-12 sm:w-16 sm:h-16 object-contain mt-1.5"
+    />
+    <span className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">UNI360</span>
+  </motion.div>
+  <h1 className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
+    {isSignUp ? 'Create Account' : 'Welcome Back'}
+  </h1>
+  <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mt-1 px-2">
+    {isSignUp 
+      ? 'Join students on their journey to Germany' 
+      : 'Sign in to continue your Study in Germany journey'
+    }
+  </p>
+</div>
           {/* Google Auth Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -673,37 +738,169 @@ const Login: React.FC = () => {
       </motion.div>
 
       {/* Right Section - Illustration */}
+      {/* Right Section - Image Grid */}
       <motion.div
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.8 }}
         className="hidden lg:flex flex-1 bg-[#C4DFF0] dark:from-gray-900 dark:to-gray-800 items-center justify-center p-8 xl:p-12"
       >
-        <div className="max-w-sm xl:max-w-md text-center">
-          <motion.img
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-            src="/student-hero.jpg"
-            alt="Student studying abroad"
-            className="w-full h-auto rounded-2xl shadow-2xl mb-6 xl:mb-8"
+        <div className="max-w-md xl:max-w-lg w-full">
+          {/* Testimonials Grid */}
+          {/* Testimonials Grid */}
+<motion.div
+  initial={{ scale: 0.8, opacity: 0 }}
+  animate={{ scale: 1, opacity: 1 }}
+  transition={{ delay: 0.3, duration: 0.8 }}
+  className="space-y-4 mb-6"
+>
+  {/* First Row - Large horizontal card + Square card with flip */}
+  <div className="grid grid-cols-3 gap-3 h-28">
+    <FlipCard
+      isFlipped={rectangleFlipped}
+  className="col-span-2"
+      frontContent={
+        <div className="bg-white rounded-xl p-3 shadow-lg flex flex-col justify-between overflow-hidden h-full">
+          <p className="text-xs text-gray-800 leading-tight line-clamp-3">
+            When I spoke with Vikrant I was already working with one consultancy who were not helping me much. I trusted Vikrant and went ahead with Ambitio and has been the best decision.
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs font-semibold text-red-600 truncate">Vishal</h4>
+              <p className="text-xs text-gray-600 truncate">UC Berkeley</p>
+            </div>
+          </div>
+        </div>
+      }
+      backContent={
+        <img 
+          src="/assets/vadim-sherbakov-d6ebY-faOO0-unsplash.jpg"
+          alt="University" 
+          className="w-full h-full object-cover object-center rounded-xl"
+        />
+      }
+    />
+    <FlipCard
+     isFlipped={squareFlipped}
+  className="relative"
+      frontContent={
+        <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl shadow-lg overflow-hidden h-full">
+          <img 
+            src="/assets/vishal.jpeg" 
+            alt="Vishal" 
+            className="w-full h-full object-cover"
           />
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.6 }}
-            className="text-xl xl:text-2xl font-bold text-gray-800 dark:text-white mb-3 xl:mb-4"
-          >
-            Your Gateway to Global Education
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.6 }}
-            className="text-sm xl:text-base text-gray-600 dark:text-gray-400 leading-relaxed"
-          >
-            Join thousands of students who have successfully started their study abroad journey with UNI360.
-          </motion.p>
+        </div>
+      }
+      backContent={
+        <img 
+  src="/assets/Lcn_logo.jpg"
+  alt="LCN Logo" 
+  className="w-full h-full object-contain bg-white rounded-xl"
+/>
+      }
+    />
+  </div>
+
+  {/* Second Row - Square card with flip + Large horizontal card */}
+  <div className="grid grid-cols-3 gap-3 h-28">
+    <FlipCard
+      isFlipped={squareFlipped}
+  className="relative"
+      frontContent={
+        <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl shadow-lg overflow-hidden h-full">
+          <img 
+            src="/assets/siddika.jpeg" 
+            alt="Siddika" 
+            className="w-full h-full object-cover"
+          />
+        </div>
+      }
+      backContent={
+        <img 
+          src="/assets/512px-Accadis_Hochschule_Bad_Homburg_logo.svg.png"
+          alt="Accadis Logo" 
+          className="w-full h-full object-contain bg-white rounded-xl"
+        />
+      }
+    />
+    <FlipCard
+     isFlipped={rectangleFlipped}
+  className="col-span-2"
+      frontContent={
+        <div className="bg-white rounded-xl p-3 shadow-lg flex flex-col justify-between overflow-hidden h-full">
+          <p className="text-xs text-gray-800 leading-tight line-clamp-3">
+            I was not sure if I have a shot at top schools in UK as I had very weak academics, I mean really weak. But Vikrant's utmost belief made me go for it, and now I am studying in my dream school.
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs font-semibold text-blue-600 truncate">Siddika</h4>
+              <p className="text-xs text-gray-600 truncate">Warwick Business School</p>
+            </div>
+          </div>
+        </div>
+      }
+      backContent={
+        <img 
+          src="/assets/eric-sharp-JdzHrfX4l4Q-unsplash.jpg"
+          alt="University" 
+          className="w-full h-full object-cover object-center rounded-xl"
+        />
+      }
+    />
+  </div>
+
+  {/* Third Row - Large horizontal card + Square card with flip */}
+  <div className="grid grid-cols-3 gap-3 h-28">
+    <FlipCard
+      isFlipped={rectangleFlipped}
+  className="col-span-2"
+      frontContent={
+        <div className="bg-white rounded-xl p-3 shadow-lg flex flex-col justify-between overflow-hidden h-full">
+          <p className="text-xs text-gray-800 leading-tight line-clamp-3">
+            My friend recommended Ambitio to me, I had a brief chat with Vikrant and got onboard. And I am really glad I did. Now, studying in a top PhD program of my niche.
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+    
+            <div className="min-w-0 flex-1">
+              <h4 className="text-xs font-semibold text-purple-600 truncate">Dishant</h4>
+              <p className="text-xs text-gray-600 truncate">UT Austin</p>
+            </div>
+          </div>
+        </div>
+      }
+      backContent={
+        <img 
+          src="/assets/s-k-9FUJeRATuQs-unsplash.jpg"
+          alt="University" 
+          className="w-full h-full object-cover object-center rounded-xl"
+        />
+      }
+    />
+    <FlipCard
+      isFlipped={squareFlipped}
+  className="relative"
+      frontContent={
+        <div className="bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl shadow-lg overflow-hidden h-full">
+          <img 
+            src="/assets/dishant.jpeg" 
+            alt="Dishant" 
+            className="w-full h-full object-cover"
+          />
+        </div>
+      }
+      backContent={
+        <img 
+          src="/assets/512px-Fachhochschule_Brandenburg_logo_alt.svg.png"
+          alt="Brandenburg Logo" 
+          className="w-full h-full object-contain bg-white rounded-xl"
+        />
+      }
+    />
+  </div>
+</motion.div>
         </div>
       </motion.div>
     </div>

@@ -1,6 +1,6 @@
+// Fixed documents.js API file
 import { getCommonHeaders, handleApiError, getToken } from './utils.js';
 
-// Base URL for documents API endpoints - use Vite proxy
 const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/student`;
 
 /**
@@ -8,19 +8,22 @@ const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/student`;
  */
 const apiRequest = async (endpoint, options = {}) => {
   let url = `${BASE_URL}${endpoint}`;
-  
-  // Add ngrok bypass header as query parameter
-  if (url.includes('ngrok') && !url.includes('ngrok-skip-browser-warning')) {
-    const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}ngrok-skip-browser-warning=true`;
+
+  if (!url.includes('ngrok-skip-browser-warning')) {
+    const sep = url.includes('?') ? '&' : '?';
+    url = `${url}${sep}ngrok-skip-browser-warning=true`;
   }
+
+  const baseHeaders = { ...getCommonHeaders(), ...options.headers };
+  const isFormData =
+    options?.body && typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (isFormData && baseHeaders['Content-Type']) delete baseHeaders['Content-Type'];
 
   const config = {
     method: options.method || 'GET',
     headers: {
       'ngrok-skip-browser-warning': 'true',
-      ...getCommonHeaders(),
-      ...options.headers,
+      ...baseHeaders,
     },
     ...options,
   };
@@ -28,37 +31,147 @@ const apiRequest = async (endpoint, options = {}) => {
   try {
     console.log(`Making documents API request to: ${url}`);
     const response = await fetch(url, config);
-    
     console.log(`API response status: ${response.status}`);
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error(`HTTP error! status: ${response.status}`, errorData);
-      throw handleApiError(errorData);
+      const err = handleApiError({ status: response.status, ...errorData });
+      err.status = response.status;
+      throw err;
     }
-    
-    const data = await response.json();
-    console.log(`Documents API response from ${endpoint}:`, data);
-    return data;
+
+    const ct = response.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const data = await response.json();
+      console.log(`Documents API response from ${endpoint}:`, data);
+      return data;
+    }
+    return await response.blob();
   } catch (error) {
     console.error(`Documents API request failed for ${endpoint}:`, error);
     throw handleApiError(error);
   }
 };
 
-/**
- * Get all document templates
- * @returns {Promise<Array>} Array of document templates
- */
-export const getDocumentTemplates = async () => {
+// Valid document types for each country
+const DOCUMENT_TYPES = {
+  germany: new Set([
+    'passport',
+    'offer_letter',
+    'bank_statement',
+    'student_visa_form',
+    'english_proficiency',
+    'academic_transcripts',
+    'passport_photos',
+    'sop',
+    'cv_resume',
+    'lor',
+    'travel_insurance',
+    'visa_fee_receipt',
+    'german_proficiency',
+    'blocked_account',
+    'accommodation_proof_germany',
+    'flight_reservation',
+    'invitation_letter',
+    'no_objection_letter',
+    'aps_certificate',
+  ]),
+  uk: new Set([
+    'passport',
+    'offer_letter',
+    'bank_statement',
+    'student_visa_form',
+    'english_proficiency',
+    'academic_transcripts',
+    'passport_photos',
+    'sop',
+    'cv_resume',
+    'lor',
+    'travel_insurance',
+    'visa_fee_receipt',
+    'cas_confirmation',
+    'tuberculosis_test',
+    'health_surcharge_payment',
+    'proof_intent_return',
+  ]),
+  common: new Set([
+    'passport',
+    'offer_letter',
+    'bank_statement',
+    'student_visa_form',
+    'english_proficiency',
+    'academic_transcripts',
+    'passport_photos',
+    'sop',
+    'cv_resume',
+    'lor',
+    'travel_insurance',
+    'visa_fee_receipt',
+  ]),
+};
+
+export const getDocumentStatusOverview = async () => {
   try {
     const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+    if (!token) throw new Error('No authentication token found');
 
-    const response = await apiRequest('/document-templates/');
-    return Array.isArray(response) ? response : [];
+    const response = await apiRequest('/document-status-overview/');
+    return response;
+  } catch (error) {
+    console.error('Get document status overview error:', error);
+    return {
+      applications: [],
+      summary: {
+        total_applications: 0,
+        total_documents_uploaded: 0,
+        pending_verification: 0,
+        approved_documents: 0,
+        rejected_documents: 0,
+        average_completion: 0,
+      },
+    };
+  }
+};
+
+const resolveApplicationId = async (country) => {
+  const overview = await getDocumentStatusOverview();
+  const apps = Array.isArray(overview?.applications) ? overview.applications : [];
+  if (!apps.length) return null;
+
+  const want = (country || '').toString().toLowerCase();
+  const match = (c) => {
+    const s = (c || '').toLowerCase();
+    if (['de', 'ger', 'germany'].includes(want)) return ['germany', 'de', 'ger'].includes(s);
+    if (['uk', 'gb', 'united_kingdom', 'great_britain'].includes(want))
+      return ['uk', 'gb', 'united_kingdom', 'great_britain'].includes(s);
+    return false;
+  };
+
+  const pool = want ? apps.filter((a) => match(a.country)) : apps;
+  const active = pool.find(
+    (a) => a.total_uploaded_documents || ['submitted'].includes(a.status),
+  );
+  return (active || pool[0])?.application_id || null;
+};
+
+/**
+ * Get document requirements for an application
+ */
+export const getDocumentTemplates = async (opts = {}) => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+
+    let applicationId = opts.application_id || (await resolveApplicationId(opts.country));
+    if (!applicationId) throw new Error('application_id is required');
+
+    const qs = new URLSearchParams({ application_id: String(applicationId) }).toString();
+    const response = await apiRequest(`/documents/requirements/?${qs}`);
+
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.requirements)) return response.requirements;
+    return [];
   } catch (error) {
     console.error('Get document templates error:', error);
     throw handleApiError(error);
@@ -66,415 +179,233 @@ export const getDocumentTemplates = async () => {
 };
 
 /**
- * Get document templates by country
- * @param {string} country - Country code ('uk' or 'germany')
- * @returns {Promise<Object>} Document requirements for the country
+ * Validate document type for country
  */
-export const getDocumentTemplatesByCountry = async (country) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+const validateDocumentType = (documentType, country) => {
+  const countryLower = (country || 'common').toLowerCase();
+  let validTypes = DOCUMENT_TYPES.common;
 
-    const response = await apiRequest(`/document-templates/by_country/?country=${country.toLowerCase()}`);
-    return response;
-  } catch (error) {
-    console.error('Get document templates by country error:', error);
-    throw handleApiError(error);
+  if (countryLower === 'germany') {
+    validTypes = DOCUMENT_TYPES.germany;
+  } else if (countryLower === 'uk' || countryLower === 'united_kingdom') {
+    validTypes = DOCUMENT_TYPES.uk;
+  }
+
+  if (!validTypes.has(documentType)) {
+    const validList = Array.from(validTypes).join(', ');
+    throw new Error(
+      `Invalid document type "${documentType}" for ${countryLower}. Valid types: ${validList}`,
+    );
   }
 };
 
 /**
- * Get document status overview
- * @returns {Promise<Object>} Document status overview with applications and summary
+ * SINGLE DOCUMENT UPLOAD - Uses correct endpoint: /documents/upload_document/
  */
-export const getDocumentStatusOverview = async () => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+export const uploadDocument = async ({ application_id, field, file, country }) => {
+  const token = getToken();
+  if (!token) throw new Error('No authentication token found');
+  if (!application_id) throw new Error('application_id is required');
+  if (!field) throw new Error('field (document_type) is required');
+  if (!file) throw new Error('file is required');
 
-    const response = await apiRequest('/document-status-overview/');
-    return response;
+  // Validate document type
+  try {
+    validateDocumentType(field, country);
   } catch (error) {
-    console.error('Get document status overview error:', error);
-    // Return empty data structure instead of throwing to prevent app crashes
-    return {
-      applications: [],
-      summary: {
-        total_applications: 0,
-        documents_uploaded: 0,
-        pending_verification: 0,
-        approved_documents: 0,
-        rejected_documents: 0,
-        not_uploaded: 0
+    throw handleApiError({ status: 400, error: error.message });
+  }
+
+  const fd = new FormData();
+  fd.append('application_id', application_id);
+  fd.append('document_type', field); // Backend expects 'document_type'
+  fd.append('file', file);
+
+  // Use the correct endpoint: /documents/upload_document/
+  return await apiRequest('/documents/upload_document/', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
+};
+
+/**
+ * BULK DOCUMENT UPLOAD - Uses correct endpoint: /documents/bulk_upload/
+ */
+export const uploadBulkDocuments = async (documentsList) => {
+  const token = getToken();
+  if (!token) throw new Error('No authentication token found');
+
+  if (!Array.isArray(documentsList) || !documentsList.length) {
+    throw new Error('No documents to upload');
+  }
+
+  // Ensure single application_id
+  const appId = documentsList[0].application_id;
+  if (!appId) throw new Error('application_id is required');
+
+  const mixed = documentsList.some((d) => d.application_id !== appId);
+  if (mixed) throw new Error('All documents must share the same application_id for bulk upload');
+
+  // Get country for validation
+  const country = documentsList[0].country;
+
+  const fd = new FormData();
+  fd.append('application_id', appId);
+
+  documentsList.forEach((doc) => {
+    const documentType = doc.field;
+    const file = doc.file;
+
+    if (documentType && file) {
+      // Validate document type
+      try {
+        validateDocumentType(documentType, country);
+        fd.append(documentType, file); // e.g., passport=<file>, sop=<file>
+      } catch (error) {
+        console.warn(`Skipping invalid document type: ${documentType}`, error.message);
+        // Skip invalid document types instead of failing entire upload
       }
-    };
-  }
+    }
+  });
+
+  // Use the correct endpoint: /documents/bulk_upload/
+  return await apiRequest('/documents/bulk_upload/', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
 };
 
 /**
- * Upload UK documents
- * @param {Object} documentsData - Form data containing documents and application_id
- * @returns {Promise<Object>} Upload response
+ * UK Documents Upload Helper
  */
 export const uploadUKDocuments = async (documentsData) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+  const token = getToken();
+  if (!token) throw new Error('No authentication token found');
 
-    // Create FormData for file upload
-    const formData = new FormData();
-    
-    // Add application_id
-    if (documentsData.application_id) {
-      formData.append('application_id', documentsData.application_id);
-    }
-    
-    // Add document files
-    const documentFields = [
-      'visa_application_form',
-      'passport', 
-      'photographs',
-      'proof_of_finances',
-      'proof_of_accommodation'
-    ];
-    
-    documentFields.forEach(field => {
-      if (documentsData[field]) {
-        formData.append(field, documentsData[field]);
-      }
+  // Single document upload
+  if (documentsData?.field && documentsData?.file) {
+    return uploadDocument({
+      application_id: documentsData.application_id,
+      field: documentsData.field,
+      file: documentsData.file,
+      country: 'uk',
     });
-
-    const response = await apiRequest('/uk-documents/upload_documents/', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-        // Don't set Content-Type for FormData, let browser set it
-      },
-      body: formData,
-    });
-
-    return response;
-  } catch (error) {
-    console.error('Upload UK documents error:', error);
-    throw handleApiError(error);
   }
+
+  // Multiple documents - convert to array format
+  const docs = [];
+  const appId = documentsData.application_id;
+
+  Object.keys(documentsData).forEach((key) => {
+    if (key !== 'application_id' && documentsData[key] instanceof File) {
+      docs.push({
+        application_id: appId,
+        field: key,
+        file: documentsData[key],
+        country: 'uk',
+      });
+    }
+  });
+
+  if (!docs.length) {
+    throw new Error('No valid document files found in payload');
+  }
+
+  return docs.length === 1 ? uploadDocument(docs[0]) : uploadBulkDocuments(docs);
 };
 
 /**
- * Upload Germany documents
- * @param {Object} documentsData - Form data containing documents and application_id
- * @returns {Promise<Object>} Upload response
+ * Germany Documents Upload Helper
  */
 export const uploadGermanyDocuments = async (documentsData) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+  const token = getToken();
+  if (!token) throw new Error('No authentication token found');
 
-    // Create FormData for file upload
-    const formData = new FormData();
-    
-    // Add application_id
-    if (documentsData.application_id) {
-      formData.append('application_id', documentsData.application_id);
-      console.log('✅ Added application_id:', documentsData.application_id);
-    }
-    
-    // Add document files - Completed fields based on typical Germany visa requirements
-    const documentFields = [
-      'visa_application_form',
-      'passport',
-      'photographs', 
-      'proof_of_accommodation',
-      'proof_of_financial_means', 
-      'flight_reservation',
-      'travel_insurance',
-      'proof_of_health_insurance',
-      'university_admission_letter',
-      'language_proficiency_certificate',
-      'cv',
-      'motivation_letter',
-      'letters_of_recommendation',
-      'birth_certificate',
-      'marriage_certificate',
-      'criminal_record_certificate'
-    ];
-    
-    documentFields.forEach(field => {
-      if (documentsData[field]) {
-        formData.append(field, documentsData[field]);
-      }
+  // Single document upload
+  if (documentsData?.field && documentsData?.file) {
+    return uploadDocument({
+      application_id: documentsData.application_id,
+      field: documentsData.field,
+      file: documentsData.file,
+      country: 'germany',
     });
-
-    const response = await apiRequest('/germany-documents/upload_documents/', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-        // Don't set Content-Type for FormData, let browser set it
-      },
-      body: formData,
-    });
-
-    return response;
-  } catch (error) {
-    console.error('Upload Germany documents error:', error);
-    throw handleApiError(error);
   }
-};
 
-/**
- * Download UK document
- * @param {string} documentId - Document ID
- * @param {string} fieldName - Field name of the document
- * @returns {Promise<Blob>} Document file blob
- */
-export const downloadUKDocument = async (documentId, fieldName) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
+  // Multiple documents - convert to array format
+  const docs = [];
+  const appId = documentsData.application_id;
+
+  Object.keys(documentsData).forEach((key) => {
+    if (key !== 'application_id' && documentsData[key] instanceof File) {
+      docs.push({
+        application_id: appId,
+        field: key,
+        file: documentsData[key],
+        country: 'germany',
+      });
     }
+  });
 
-    const response = await fetch(`${BASE_URL}/uk-documents/${documentId}/download/?field=${fieldName}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw handleApiError(errorData);
-    }
-
-    return await response.blob();
-  } catch (error) {
-    console.error('Download UK document error:', error);
-    throw handleApiError(error);
+  if (!docs.length) {
+    throw new Error('No valid document files found in payload');
   }
+
+  return docs.length === 1 ? uploadDocument(docs[0]) : uploadBulkDocuments(docs);
 };
 
 /**
- * Download Germany document
- * @param {string} documentId - Document ID
- * @param {string} fieldName - Field name of the document
- * @returns {Promise<Blob>} Document file blob
+ * Download document
  */
-export const downloadGermanyDocument = async (documentId, fieldName) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+export const downloadDocumentById = async (documentId) => {
+  const token = getToken();
+  if (!token) throw new Error('No authentication token found');
 
-    const response = await fetch(`${BASE_URL}/germany-documents/${documentId}/download/?field=${fieldName}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-      },
-    });
+  const response = await fetch(`${BASE_URL}/documents/${documentId}/download/`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'ngrok-skip-browser-warning': 'true',
+    },
+  });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw handleApiError(errorData);
-    }
-
-    return await response.blob();
-  } catch (error) {
-    console.error('Download Germany document error:', error);
-    throw handleApiError(error);
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw handleApiError({ status: response.status, ...errorData });
   }
+
+  return await response.blob();
 };
 
 /**
- * Download generic document
- * @param {string} url - Document URL
- * @returns {Promise<Blob>} Document file blob
+ * File validation functions
  */
-export const downloadDocument = async (url) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+export const validateFileType = (
+  file,
+  allowedTypes = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/jpg',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+) => allowedTypes.includes(file.type);
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'ngrok-skip-browser-warning': 'true',
-      },
-    });
+export const validateFileSize = (file, maxSizeMB = 10) =>
+  file.size <= maxSizeMB * 1024 * 1024;
 
-    if (!response.ok) {
-      throw new Error('Failed to download document');
-    }
-
-    return await response.blob();
-  } catch (error) {
-    console.error('Download document error:', error);
-    throw handleApiError(error);
-  }
-};
-
-/**
- * Get notifications (generic)
- * @returns {Promise<Array>} Array of notifications
- */
-export const getNotifications = async () => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await apiRequest('/notifications/');
-    return Array.isArray(response) ? response : [];
-  } catch (error) {
-    console.error('Get notifications error:', error);
-    return [];
-  }
-};
-
-/**
- * Get document notifications
- * @returns {Promise<Array>} Array of document-related notifications
- */
-export const getDocumentNotifications = async () => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await apiRequest('/document-notifications/');
-    return Array.isArray(response) ? response : [];
-  } catch (error) {
-    console.error('Get document notifications error:', error);
-    return [];
-  }
-};
-
-/**
- * Mark notification as read
- * @param {string} notificationId - Notification ID
- * @returns {Promise<Object>} Response confirmation
- */
-export const markNotificationAsRead = async (notificationId) => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await apiRequest(`/notifications/${notificationId}/mark_read/`, {
-      method: 'PUT',
-    });
-
-    return response;
-  } catch (error) {
-    console.error('Mark notification as read error:', error);
-    throw handleApiError(error);
-  }
-};
-
-/**
- * Mark all notifications as read
- * @returns {Promise<Object>} Response confirmation
- */
-export const markAllNotificationsAsRead = async () => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await apiRequest('/notifications/mark_all_read/', {
-      method: 'PUT',
-    });
-
-    return response;
-  } catch (error) {
-    console.error('Mark all notifications as read error:', error);
-    throw handleApiError(error);
-  }
-};
-
-/**
- * Get legacy documents (for backward compatibility)
- * @returns {Promise<Object>} Legacy document information
- */
-export const getLegacyDocuments = async () => {
-  try {
-    const token = getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
-
-    const response = await apiRequest('/documents/legacy_documents/');
-    return response;
-  } catch (error) {
-    console.error('Get legacy documents error:', error);
-    // Return empty legacy structure instead of throwing
-    return {
-      message: 'Legacy document system. Please use country-specific upload APIs.',
-      legacy_documents_count: 0,
-      note: 'Use /api/student/uk-documents/ or /api/student/germany-documents/ for new uploads.'
-    };
-  }
-};
-
-/**
- * Helper function to validate file types
- * @param {File} file - File to validate
- * @param {Array} allowedTypes - Array of allowed MIME types
- * @returns {boolean} True if file type is allowed
- */
-export const validateFileType = (file, allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']) => {
-  return allowedTypes.includes(file.type);
-};
-
-/**
- * Helper function to validate file size
- * @param {File} file - File to validate
- * @param {number} maxSizeMB - Maximum size in MB (default: 10MB)
- * @returns {boolean} True if file size is within limit
- */
-export const validateFileSize = (file, maxSizeMB = 10) => {
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
-  return file.size <= maxSizeBytes;
-};
-
-/**
- * Helper function to format file size for display
- * @param {number} bytes - File size in bytes
- * @returns {string} Formatted file size
- */
 export const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';
-  
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 };
 
 /**
- * Transform document status data for UI consumption
- * @param {Object} statusData - Raw status data from API
- * @returns {Object} Transformed data for UI
+ * Transform document status data for UI
  */
 export const transformDocumentStatusForUI = (statusData) => {
   if (!statusData || !statusData.applications) {
@@ -482,56 +413,53 @@ export const transformDocumentStatusForUI = (statusData) => {
       pending: [],
       uploaded: [],
       reupload: [],
-      stats: {
-        pending: 0,
-        uploaded: 0,
-        reupload: 0,
-        verified: 0
-      }
+      stats: { pending: 0, uploaded: 0, reupload: 0, verified: 0 },
     };
   }
 
   const pending = statusData.applications
-    .filter(app => !app.documents_uploaded)
-    .map(app => ({
-      id: app.document_id,
-      name: `${app.country} Documents`,
-      type: app.country === 'UK' ? 'Academic' : 'Visa',
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    .filter((a) => a.total_required_documents > a.total_uploaded_documents)
+    .map((a) => ({
+      id: a.application_id,
+      name: `${a.country} Documents`,
+      type: a.country === 'UK' ? 'Academic' : 'Visa',
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split('T')[0],
       priority: 'high',
-      description: `Required documents for ${app.university_name}`,
-      applicationId: app.application_id,
-      universityName: app.university_name,
-      country: app.country
+      description: `Required documents for ${a.university_name}`,
+      applicationId: a.application_id,
+      universityName: a.university_name,
+      country: a.country,
     }));
 
   const uploaded = statusData.applications
-    .filter(app => app.documents_uploaded && app.verification_status !== 'rejected')
-    .map(app => ({
-      id: app.document_id,
-      name: `${app.country} Documents`,
-      type: app.country === 'UK' ? 'Academic' : 'Visa',
-      uploadDate: new Date(app.uploaded_at).toLocaleDateString(),
-      status: app.verification_status,
-      size: '2.1 MB', // Mock size - you can enhance this
-      applicationId: app.application_id,
-      universityName: app.university_name,
-      country: app.country
+    .filter((a) => a.total_uploaded_documents > 0 && a.rejected_documents === 0)
+    .map((a) => ({
+      id: a.application_id,
+      name: `${a.country} Documents`,
+      type: a.country === 'UK' ? 'Academic' : 'Visa',
+      uploadDate: new Date().toLocaleDateString(),
+      status: a.approved_documents > 0 ? 'approved' : 'pending',
+      size: '2.1 MB',
+      applicationId: a.application_id,
+      universityName: a.university_name,
+      country: a.country,
     }));
 
   const reupload = statusData.applications
-    .filter(app => app.verification_status === 'rejected')
-    .map(app => ({
-      id: app.document_id,
-      name: `${app.country} Documents`,
-      type: app.country === 'UK' ? 'Academic' : 'Visa',
-      uploadDate: new Date(app.uploaded_at).toLocaleDateString(),
-      status: app.verification_status,
-      reason: app.admin_feedback || 'Document requires revision. Please check with admin.',
-      size: '1.8 MB', // Mock size
-      applicationId: app.application_id,
-      universityName: app.university_name,
-      country: app.country
+    .filter((a) => a.rejected_documents > 0)
+    .map((a) => ({
+      id: a.application_id,
+      name: `${a.country} Documents`,
+      type: a.country === 'UK' ? 'Academic' : 'Visa',
+      uploadDate: new Date().toLocaleDateString(),
+      status: 'rejected',
+      reason: 'Document requires revision. Please check with admin.',
+      size: '1.8 MB',
+      applicationId: a.application_id,
+      universityName: a.university_name,
+      country: a.country,
     }));
 
   return {
@@ -542,28 +470,79 @@ export const transformDocumentStatusForUI = (statusData) => {
       pending: pending.length,
       uploaded: uploaded.length,
       reupload: reupload.length,
-      verified: statusData.summary?.approved_documents || 0
-    }
+      verified: statusData.summary?.approved_documents || 0,
+    },
   };
 };
 
-// Export all functions as default object for easy importing
+/**
+ * Additional helper functions from original code
+ */
+export const getNotifications = async () => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+    const response = await apiRequest('/notifications/');
+    return Array.isArray(response) ? response : [];
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    return [];
+  }
+};
+
+export const markNotificationAsRead = async (notificationId) =>
+  apiRequest(`/notifications/${notificationId}/mark_read/`, { method: 'PUT' });
+
+export const markAllNotificationsAsRead = async () =>
+  apiRequest('/notifications/mark_all_read/', { method: 'PUT' });
+
+export const getReusableDocuments = async () => {
+  try {
+    const token = getToken();
+    if (!token) throw new Error('No authentication token found');
+    // ✅ Align with your API spec: /api/student/documents/reusable/
+    const response = await apiRequest('/documents/reusable/');
+    return Array.isArray(response) ? response : [];
+  } catch (error) {
+    console.error('Get reusable documents error:', error);
+    return [];
+  }
+};
+
+// Aliases for backward compatibility
+export const getDocumentRequirements = async (opts = {}) => getDocumentTemplates(opts);
+export const getDocumentTemplatesByCountry = async (country) =>
+  getDocumentTemplates({ country });
+
+// Export all functions
 export default {
+  // Requirements
   getDocumentTemplates,
   getDocumentTemplatesByCountry,
+  getDocumentRequirements,
   getDocumentStatusOverview,
+
+  // Uploads
+  uploadDocument,
+  uploadBulkDocuments,
   uploadUKDocuments,
   uploadGermanyDocuments,
-  downloadUKDocument,
-  downloadGermanyDocument,
-  downloadDocument,
-  getNotifications,
-  getDocumentNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  getLegacyDocuments,
+
+  // Downloads
+  downloadDocumentById,
+
+  // Validation helpers
   validateFileType,
   validateFileSize,
   formatFileSize,
+  validateDocumentType,
   transformDocumentStatusForUI,
+
+  // Notifications
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+
+  // Reusable documents
+  getReusableDocuments,
 };

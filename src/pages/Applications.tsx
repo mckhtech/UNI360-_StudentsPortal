@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -31,7 +31,7 @@ const normalizeApiCountry = (val?: string) => {
   if (["de", "ger", "germany"].includes(s)) return "germany";
   if (["uk", "gb", "united_kingdom", "unitedkingdom", "great_britain"].includes(s))
     return "united_kingdom";
-  // best effort: if it looks like "german…" pick germany, else UK
+  // best effort: if it looks like "germanâ€¦" pick germany, else UK
   if (s.includes("german")) return "germany";
   if (s.includes("kingdom") || s.includes("brit")) return "united_kingdom";
   return ""; // unknown
@@ -195,15 +195,21 @@ export default function Applications() {
     courseName: string;
   } | null>(null);
 
+  // Use ref to track if we've already processed the navigation state
+  const hasProcessedNavState = useRef(false);
+
   // Load apps on mount / when tab changes
   useEffect(() => {
     loadApplications();
   }, [selectedCountry]);
 
-  // If we navigated here with { university, course }, create the app and select the right tab
+  // Handle navigation state only once
   useEffect(() => {
     const state: any = location.state;
-    if (!state) return;
+    if (!state || hasProcessedNavState.current) return;
+
+    // Mark as processed immediately to prevent duplicate runs
+    hasProcessedNavState.current = true;
 
     (async () => {
       try {
@@ -229,9 +235,7 @@ export default function Applications() {
         setError(e?.message || "Failed to create application");
       }
     })();
-    // run once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Empty dependency array - only run once
 
   const loadApplications = async () => {
     setLoading(true);
