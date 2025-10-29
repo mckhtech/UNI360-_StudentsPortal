@@ -21,6 +21,7 @@ interface Resource {
   isCalculator?: boolean;
   redirectLink?: string;
   price?: string; // for premium items
+  isInterviewPrep?: boolean;
 }
 
 interface PaymentMethod {
@@ -39,6 +40,12 @@ export default function Resources() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
   const [selectedCalculator, setSelectedCalculator] = useState<Resource | null>(null);
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<'germany' | 'uk' | null>(null);
+  const [showInterviewQuestions, setShowInterviewQuestions] = useState(false);
+  const [showInterviewPayment, setShowInterviewPayment] = useState(false);
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [showFlightModal, setShowFlightModal] = useState(false);
 
   // Advanced filter states
   const [selectedType, setSelectedType] = useState<string>('all');
@@ -49,7 +56,7 @@ export default function Resources() {
   const categories = [
     { id: 'all', label: 'All Resources', count: 24 },
     { id: 'language', label: 'Language Prep', count: 3 },
-    { id: 'services', label: 'Services', count: 3 },
+    { id: 'services', label: 'Services', count: 4 },
     { id: 'guides', label: 'Study Guides', count: 6 },
     { id: 'checklists', label: 'Checklists', count: 4 },
     { id: 'scholarships', label: 'Scholarships', count: 3 },
@@ -151,7 +158,7 @@ export default function Resources() {
       featured: true,
       isPremium: true,
       price: '₹2,999',
-      redirectLink: 'https://demo.vprepu.com/register'
+      redirectLink: 'http://elearning.uni360degree.com'
     },
     {
       id: 10,
@@ -164,7 +171,7 @@ export default function Resources() {
       featured: true,
       isPremium: true,
       price: '₹2,999',
-      redirectLink: 'https://demo.vprepu.com/register'
+      redirectLink: 'http://elearning.uni360degree.com'
     },
     {
       id: 11,
@@ -177,7 +184,7 @@ export default function Resources() {
       featured: true,
       isPremium: true,
       price: '₹2,999',
-      redirectLink: 'https://demo.vprepu.com/register'
+      redirectLink: 'http://elearning.uni360degree.com'
     },
     {
       id: 12,
@@ -214,7 +221,33 @@ export default function Resources() {
       featured: true,
       isCalculator: true,
       redirectLink: '/german-grade-calculator'
+    },
+    {
+      id: 15,
+      title: 'Visa Interview Preparation',
+      description: 'Comprehensive preparation for student visa interviews with commonly asked questions, expert answers, and country-specific guidance for Germany and UK applications.',
+      category: 'services',
+      type: 'Service',
+      readTime: 'Interactive prep',
+      tags: ['Interview', 'Visa', 'Germany', 'UK', 'Preparation'],
+      featured: true,
+      isService: true,
+      isInterviewPrep: true,
+      redirectLink: '#'
+    },
+    {
+      id: 16,
+      title: 'Flight Booking Assistance',
+      description: 'Get help with booking affordable flights for your study abroad journey. We assist you in finding the best flight deals and routes to your destination country.',
+      category: 'services',
+      type: 'Service',
+      readTime: 'Quick service',
+      tags: ['Flight', 'Travel', 'Booking', 'International'],
+      featured: true,
+      isService: true,
+      redirectLink: 'https://your-flight-booking-link.com'
     }
+    
   ];
 
   const paymentMethods: PaymentMethod[] = [
@@ -244,8 +277,14 @@ export default function Resources() {
     if (resource.isPremium) {
       setSelectedCourse(resource);
       setShowPaymentModal(true);
+    } else if (resource.isInterviewPrep) {
+      setShowInterviewModal(true);
     } else if (resource.isService && resource.redirectLink) {
-      window.open(resource.redirectLink, '_blank');
+      if (resource.id === 16) {
+        setShowFlightModal(true);
+      } else {
+        window.open(resource.redirectLink, '_blank');
+      }
     } else if (resource.isCalculator) {
       setSelectedCalculator(resource);
       setShowCalculatorModal(true);
@@ -278,6 +317,37 @@ export default function Resources() {
     if (e.target === e.currentTarget) {
       setShowAdvancedFilters(false);
     }
+  };
+
+  const interviewQuestions = {
+    germany: [
+      {
+        question: "Why do you want to study in Germany?",
+        answer: "I want to study in Germany because of its excellent education system, particularly strong engineering programs, and the opportunity to learn German language and culture. Germany offers high-quality education with relatively low tuition fees and great research opportunities."
+      },
+      {
+        question: "How will you finance your studies?",
+        answer: "I have sufficient funds through my family savings, education loan from [Bank Name], and I've also applied for scholarships. I have shown blocked account of €11,208 as proof of financial support."
+      },
+      {
+        question: "What are your plans after graduation?",
+        answer: "After graduation, I plan to gain some work experience in Germany using the 18-month job search visa, and then return to my home country to contribute to its development using the knowledge and skills I've gained."
+      }
+    ],
+    uk: [
+      {
+        question: "Why did you choose to study in the UK?",
+        answer: "The UK has world-renowned universities with excellent academic standards. The education system emphasizes critical thinking and practical application, which aligns with my career goals. Additionally, the multicultural environment will enhance my global perspective."
+      },
+      {
+        question: "How do you plan to fund your studies?",
+        answer: "My studies will be funded through a combination of family savings, an education loan, and potentially part-time work (up to 20 hours per week as permitted). I have demonstrated sufficient funds to cover tuition and living expenses."
+      },
+      {
+        question: "What will you do after your studies?",
+        answer: "I plan to return to my home country after completing my studies to apply the knowledge and skills I've gained to contribute to my country's development in my chosen field."
+      }
+    ]
   };
 
   // New Advanced Filters Modal - completely rewritten
@@ -433,146 +503,161 @@ const NewAdvancedFiltersModal = () => {
 
   /* ---------- Payment Modal ---------- */
   /* ---------- Payment Modal ---------- */
+  // Payment Modal Component
   const PaymentModal = () => {
     if (!showPaymentModal || !selectedCourse) return null;
 
-    const handlePaymentMethodChange = (methodId: PaymentMethod['id']) => {
-      setSelectedPaymentMethod(methodId);
-    };
-
     return (
-      <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      >
         {/* Background overlay */}
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowPaymentModal(false)} />
-
+        
         <motion.div
-          className="relative glass rounded-2xl w-full max-w-md shadow-2xl border border-border bg-card/95 backdrop-blur-lg max-h-[90vh] overflow-hidden"
+          className="relative bg-card rounded-xl w-full max-w-xs shadow-2xl border border-border"
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          transition={{ type: 'spring', duration: 0.3 }}
+          transition={{ type: "spring", duration: 0.3 }}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center">
+          <div className="p-4">
+            {/* Header */}
+            <div className="text-center mb-3">
+              <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center mx-auto mb-1">
                 <Lock className="h-4 w-4 text-primary" />
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Access Premium Course</h3>
-                <p className="text-sm text-muted-foreground truncate max-w-[200px]">{selectedCourse.title}</p>
-              </div>
+              <h3 className="text-base font-semibold mb-1">Access Premium Course</h3>
+              <p className="text-muted-foreground text-xs">{selectedCourse.title}</p>
             </div>
-            <button onClick={() => setShowPaymentModal(false)} className="p-2 hover:bg-muted rounded-lg transition-colors">
-              <X className="h-5 w-5 text-muted-foreground" />
-            </button>
-          </div>
 
-          {/* Content */}
-          <div className="p-4 space-y-4">
-            {/* Pricing Section */}
-            <div className="bg-primary/5 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-primary">{selectedCourse.price ?? '₹2,999'}</div>
-              <div className="flex items-center justify-center gap-2 text-sm">
-                <span className="text-muted-foreground line-through">₹4,999</span>
-                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs font-medium">Save 40%</span>
-              </div>
+            {/* Pricing */}
+            <div className="text-center mb-3">
+              <div className="text-lg font-bold text-primary">₹2,999</div>
+              <div className="text-xs text-muted-foreground line-through">₹4,999</div>
+              <div className="text-xs text-green-600 font-medium">Save 40%</div>
             </div>
 
             {/* Payment Method Selection */}
-            <div>
-              <h4 className="text-sm font-medium text-foreground mb-3">Choose Payment Method</h4>
-              <div className="grid grid-cols-1 gap-2">
-                {paymentMethods.map(method => {
+            <div className="mb-3">
+              <h4 className="text-xs font-medium mb-2">Choose Payment Method</h4>
+              <div className="space-y-1.5">
+                {paymentMethods.map((method) => {
                   const IconComponent = method.icon;
                   return (
-                    <button
+                    <label
                       key={method.id}
-                      type="button"
-                      className={`flex items-center p-3 border rounded-lg transition-all text-left w-full ${
-                        selectedPaymentMethod === method.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                      className={`relative flex items-center p-2 border rounded-lg cursor-pointer transition-all ${
+                        selectedPaymentMethod === method.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
                       }`}
-                      onClick={() => handlePaymentMethodChange(method.id)}
                     >
-                      <IconComponent className="h-4 w-4 text-muted-foreground mr-3" />
-                      <span className="font-medium flex-1 text-sm">{method.label}</span>
-                      {method.popular && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full mr-2">Popular</span>}
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedPaymentMethod === method.id ? 'border-primary bg-primary' : 'border-muted-foreground/30'}`}>
-                        {selectedPaymentMethod === method.id && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value={method.id}
+                        checked={selectedPaymentMethod === method.id}
+                        onChange={() => setSelectedPaymentMethod(method.id)}
+                        className="sr-only"
+                      />
+                      <IconComponent className="h-3.5 w-3.5 text-muted-foreground mr-2" />
+                      <span className="text-xs font-medium flex-1">{method.label}</span>
+                      {method.popular && (
+                        <span className="text-xs bg-green-100 text-green-700 px-1 py-0.5 rounded-full mr-1">Popular</span>
+                      )}
+                      <div className={`w-3 h-3 rounded-full border-2 ${
+                        selectedPaymentMethod === method.id
+                          ? 'border-primary bg-primary'
+                          : 'border-muted-foreground/30'
+                      }`}>
+                        {selectedPaymentMethod === method.id && (
+                          <div className="w-1 h-1 bg-white rounded-full mx-auto mt-0.5"></div>
+                        )}
                       </div>
-                    </button>
+                    </label>
                   );
                 })}
               </div>
             </div>
 
-            {/* Payment Forms */}
+            {/* Payment Form */}
             {selectedPaymentMethod === 'card' && (
-              <div className="space-y-3">
-                <input 
-                  type="text" 
-                  placeholder="Card Number" 
-                  className="w-full p-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" 
+              <div className="space-y-2 mb-3">
+                <input
+                  type="text"
+                  placeholder="Card Number"
+                  className="w-full p-2 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
                 />
                 <div className="grid grid-cols-2 gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="MM/YY" 
-                    className="w-full p-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" 
+                  <input
+                    type="text"
+                    placeholder="MM/YY"
+                    className="w-full p-2 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
                   />
-                  <input 
-                    type="text" 
-                    placeholder="CVV" 
-                    maxLength={3} 
-                    className="w-full p-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm" 
+                  <input
+                    type="text"
+                    placeholder="CVV"
+                    maxLength={3}
+                    className="w-full p-2 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
                   />
                 </div>
               </div>
             )}
 
             {selectedPaymentMethod === 'upi' && (
-              <div>
+              <div className="space-y-2 mb-3">
                 <input
                   type="text"
                   placeholder="UPI ID (e.g., yourname@paytm)"
-                  className="w-full p-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                  className="w-full p-2 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs"
                 />
               </div>
             )}
 
             {selectedPaymentMethod === 'wallet' && (
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" className="p-2.5 border border-border rounded-lg hover:border-primary/50 font-medium transition-colors text-sm">Paytm</button>
-                <button type="button" className="p-2.5 border border-border rounded-lg hover:border-primary/50 font-medium transition-colors text-sm">PhonePe</button>
-                <button type="button" className="p-2.5 border border-border rounded-lg hover:border-primary/50 font-medium transition-colors text-sm">GPay</button>
-                <button type="button" className="p-2.5 border border-border rounded-lg hover:border-primary/50 font-medium transition-colors text-sm">Amazon</button>
+              <div className="mb-3">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button className="p-1.5 border border-border rounded-lg hover:border-primary/50 text-xs font-medium transition-colors">
+                    Paytm
+                  </button>
+                  <button className="p-1.5 border border-border rounded-lg hover:border-primary/50 text-xs font-medium transition-colors">
+                    PhonePe
+                  </button>
+                  <button className="p-1.5 border border-border rounded-lg hover:border-primary/50 text-xs font-medium transition-colors">
+                    GPay
+                  </button>
+                  <button className="p-1.5 border border-border rounded-lg hover:border-primary/50 text-xs font-medium transition-colors">
+                    Amazon
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Security notice */}
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground bg-muted/30 rounded-lg p-2">
-              <Lock className="h-3 w-3" />
-              <span>Secured with SSL encryption</span>
+            <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mb-3">
+              <Lock className="h-2.5 w-2.5" />
+              <span>Secured with SSL</span>
             </div>
-          </div>
 
-          {/* Footer Actions */}
-          <div className="flex gap-3 p-4 border-t border-border bg-muted/20">
-            <button 
-              type="button" 
-              onClick={() => setShowPaymentModal(false)} 
-              className="flex-1 py-3 px-4 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium"
-            >
-              Cancel
-            </button>
-            <button 
-              type="button" 
-              onClick={handlePayment} 
-              className="flex-1 py-3 px-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium flex items-center justify-center gap-2"
-            >
-              <Lock className="h-4 w-4" />
-              Pay {selectedCourse.price ?? '₹2,999'}
-            </button>
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="flex-1 py-2 px-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePayment}
+                className="flex-1 py-2 px-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium text-xs flex items-center justify-center gap-1"
+              >
+                Pay ₹2,999
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>
@@ -603,7 +688,7 @@ const NewAdvancedFiltersModal = () => {
         {/* Background overlay */}
         <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCalculatorModal(false)} />
 
-        <motion.div
+<motion.div
           className="relative bg-card rounded-xl w-full max-w-5xl shadow-2xl border border-border max-h-[90vh] overflow-y-auto hide-scrollbar"
           initial={{ scale: 0.95, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -625,6 +710,457 @@ const NewAdvancedFiltersModal = () => {
       </motion.div>
     );
   };
+
+  /* ---------- Interview Preparation Modals ---------- */
+const InterviewCountryModal = () => {
+  if (!showInterviewModal) return null;
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowInterviewModal(false)} />
+      
+      <motion.div
+        className="relative bg-card rounded-xl w-full max-w-md shadow-2xl border border-border"
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        transition={{ type: "spring", duration: 0.3 }}
+      >
+        <div className="p-6">
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-semibold mb-2">Choose Your Destination</h3>
+            <p className="text-muted-foreground text-sm">Select the country for visa interview preparation</p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setSelectedCountry('germany');
+                setShowInterviewModal(false);
+                setShowInterviewQuestions(true);
+              }}
+              className="w-full p-4 border border-border rounded-lg hover:border-primary/50 transition-all text-left"
+            >
+              <div className="font-medium">Germany</div>
+              <div className="text-sm text-muted-foreground">Student visa interview preparation</div>
+            </button>
+            
+            <button
+              onClick={() => {
+                setSelectedCountry('uk');
+                setShowInterviewModal(false);
+                setShowInterviewQuestions(true);
+              }}
+              className="w-full p-4 border border-border rounded-lg hover:border-primary/50 transition-all text-left"
+            >
+              <div className="font-medium">United Kingdom</div>
+              <div className="text-sm text-muted-foreground">Student visa interview preparation</div>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowInterviewModal(false)}
+            className="w-full mt-4 py-2 px-4 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const InterviewQuestionsModal = () => {
+  if (!showInterviewQuestions || !selectedCountry) return null;
+
+  const questions = interviewQuestions[selectedCountry];
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
+        setShowInterviewQuestions(false);
+        setSelectedCountry(null);
+      }} />
+      
+      <motion.div
+        className="relative bg-card rounded-xl w-full max-w-4xl shadow-2xl border border-border max-h-[90vh] overflow-y-auto"
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        transition={{ type: "spring", duration: 0.3 }}
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-semibold text-primary">
+                {selectedCountry === 'germany' ? 'Germany' : 'UK'} Visa Interview Questions
+              </h3>
+              <p className="text-muted-foreground text-sm">Common questions and sample answers</p>
+            </div>
+            <button 
+              onClick={() => {
+                setShowInterviewQuestions(false);
+                setSelectedCountry(null);
+              }}
+              className="p-2 hover:bg-muted rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </div>
+
+          <div className="space-y-6 mb-8">
+            {questions.map((qa, index) => (
+              <div key={index} className="p-4 bg-muted/30 rounded-lg">
+                <h4 className="font-semibold text-primary mb-2">Q{index + 1}. {qa.question}</h4>
+                <p className="text-muted-foreground">{qa.answer}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="text-center p-6 bg-primary/5 rounded-lg border border-primary/20">
+            <h4 className="font-semibold mb-2">Want More Questions & Expert Templates?</h4>
+            <p className="text-sm text-muted-foreground mb-4">
+              Get access to 50+ interview questions, country-specific templates, and expert guidance
+            </p>
+            <button
+              onClick={() => {
+                setShowInterviewQuestions(false);
+                setShowInterviewPayment(true);
+              }}
+              className="bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
+            >
+              Download Premium Templates - ₹1,999
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const InterviewPaymentModal = () => {
+  if (!showInterviewPayment || !selectedCountry) return null;
+
+  const handleInterviewPayment = () => {
+    setTimeout(() => {
+      setShowInterviewPayment(false);
+      setShowDownloadModal(true);
+    }, 1000);
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowInterviewPayment(false)} />
+      
+      <motion.div
+        className="relative bg-card rounded-xl w-full max-w-xs shadow-2xl border border-border"
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        transition={{ type: "spring", duration: 0.3 }}
+      >
+        <div className="p-4">
+          <div className="text-center mb-3">
+            <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center mx-auto mb-1">
+              <Lock className="h-4 w-4 text-primary" />
+            </div>
+            <h3 className="text-base font-semibold mb-1">Premium Interview Templates</h3>
+            <p className="text-muted-foreground text-xs">
+              {selectedCountry === 'germany' ? 'Germany' : 'UK'} Visa Interview Preparation
+            </p>
+          </div>
+
+          <div className="text-center mb-3">
+            <div className="text-lg font-bold text-primary">₹1,999</div>
+            <div className="text-xs text-muted-foreground line-through">₹2,999</div>
+            <div className="text-xs text-green-600 font-medium">Save 33%</div>
+          </div>
+
+          <div className="space-y-2 mb-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Check className="h-3 w-3 text-green-600" />
+              50+ Interview Questions & Answers
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="h-3 w-3 text-green-600" />
+              Country-specific Templates
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="h-3 w-3 text-green-600" />
+              Expert Tips & Guidance
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowInterviewPayment(false)}
+              className="flex-1 py-2 px-2 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors font-medium text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleInterviewPayment}
+              className="flex-1 py-2 px-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium text-xs"
+            >
+              Pay ₹1,999
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const DownloadTemplatesModal = () => {
+  if (!showDownloadModal || !selectedCountry) return null;
+
+  const templates = selectedCountry === 'germany' ? [
+    { name: 'Germany Visa Interview Template 1', link: '/templates/germany/template1.pdf' },
+    { name: 'Germany Visa Interview Template 2', link: '/templates/germany/template2.pdf' },
+    { name: 'Germany Visa Interview Template 3', link: '/templates/germany/template3.pdf' },
+    { name: 'Germany Visa Interview Template 4', link: '/templates/germany/template4.pdf' },
+  ] : [
+    { name: 'UK Visa Interview Template 1', link: '/templates/uk/template1.pdf' },
+    { name: 'UK Visa Interview Template 2', link: '/templates/uk/template2.pdf' },
+    { name: 'UK Visa Interview Template 3', link: '/templates/uk/template3.pdf' },
+    { name: 'UK Visa Interview Template 4', link: '/templates/uk/template4.pdf' },
+  ];
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
+        setShowDownloadModal(false);
+        setSelectedCountry(null);
+      }} />
+      
+      <motion.div
+        className="relative bg-card rounded-xl w-full max-w-md shadow-2xl border border-border"
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        transition={{ type: "spring", duration: 0.3 }}
+      >
+        <div className="p-6">
+          <div className="text-center mb-6">
+            <h3 className="text-xl font-semibold mb-2">Download Your Templates</h3>
+            <p className="text-muted-foreground text-sm">Click below to download the templates</p>
+          </div>
+
+          <div className="space-y-3">
+            {templates.map((template, index) => (
+              <a
+                key={index}
+                href={template.link}
+                download
+                className="block w-full p-4 border border-border rounded-lg hover:border-primary/50 transition-all text-left"
+              >
+                <div className="font-medium">{template.name}</div>
+              </a>
+            ))}
+          </div>
+
+          <button
+            onClick={() => {
+              setShowDownloadModal(false);
+              setSelectedCountry(null);
+            }}
+            className="w-full mt-4 py-2 px-4 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const FlightBookingModal = () => {
+  if (!showFlightModal) return null;
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    tripType: 'ONEWAY',
+    travelClass: 'ECONOMY',
+    adult: '1',
+    childCount: '0',
+    childAges: '',
+    fromAirport: '',
+    toAirport: '',
+    departureDate: '',
+    returnDate: '',
+    reason: '',
+    approverName: '',
+    approverEmail: '',
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async () => {
+    const childAgesArray = formData.childAges.split(',').map(age => parseInt(age.trim())).filter(age => !isNaN(age));
+
+    const journeyDetails = [
+      {
+        from: {
+          airportCode: formData.fromAirport.toUpperCase(),
+          cityName: '',
+          countryCode: 'IN',
+          countryName: 'India',
+        },
+        to: {
+          airportCode: formData.toAirport.toUpperCase(),
+          cityName: '',
+          countryCode: 'IN',
+          countryName: 'India',
+        },
+        departureDate: new Date(formData.departureDate).getTime(),
+        arrivalDate: 0,
+      },
+    ];
+
+    if (formData.tripType === 'ROUND_TRIP' && formData.returnDate) {
+      journeyDetails.push({
+        from: {
+          airportCode: formData.toAirport.toUpperCase(),
+          cityName: '',
+          countryCode: 'IN',
+          countryName: 'India',
+        },
+        to: {
+          airportCode: formData.fromAirport.toUpperCase(),
+          cityName: '',
+          countryCode: 'IN',
+          countryName: 'India',
+        },
+        departureDate: new Date(formData.returnDate).getTime(),
+        arrivalDate: 0,
+      });
+    }
+
+    const payload = {
+      deviceDetails: {
+        version: '1.0',
+        platform: 'DESKTOP',
+      },
+      travellerDetails: {
+        paxDetails: [
+          {
+            name: formData.name,
+            email: formData.email,
+            isPrimaryPax: true,
+          },
+        ],
+      },
+      services: {
+        FLIGHT: [
+          {
+            serviceId: Date.now().toString(),
+            tripType: formData.tripType,
+            travelClass: formData.travelClass,
+            paxDetails: {
+              adult: parseInt(formData.adult),
+              child: {
+                count: parseInt(formData.childCount),
+                age: childAgesArray,
+              },
+              infant: 0,
+            },
+            journeyDetails,
+          },
+        ],
+        HOTEL: [],
+      },
+      reasonForTravel: {
+        reason: formData.reason,
+      },
+      approvalDetails: {
+        approvalRequired: true,
+        approverDetails: [
+          {
+            approvalLevel: 1,
+            name: formData.approverName,
+            emailId: formData.approverEmail,
+          },
+        ],
+      },
+      trfId: Date.now().toString(),
+    };
+
+    try {
+      const response = await fetch('/corporate/v1/create/partner/travel-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'partner-apikey': 'YOUR_PARTNER_API_KEY', // Replace with actual key shared by myBiz team
+          'client-code': 'YOUR_CLIENT_CODE', // Replace with actual code shared by myBiz team
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (data.status === 'success' && data.travelRequestUrl) {
+        window.open(data.travelRequestUrl, '_blank');
+      }
+      setShowFlightModal(false);
+    } catch (error) {
+      console.error('Error submitting travel request:', error);
+    }
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowFlightModal(false)} />
+      <motion.div
+        className="relative bg-card rounded-xl w-full max-w-md shadow-2xl border border-border overflow-y-auto max-h-[90vh]"
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+        transition={{ type: 'spring', duration: 0.3 }}
+      >
+        <div className="p-6">
+          <h3 className="text-xl font-semibold mb-4">Flight Booking Request</h3>
+          <div className="space-y-4">
+            <input name="name" onChange={handleChange} value={formData.name} placeholder="Full Name" className="w-full p-2 border rounded" />
+            <input name="email" onChange={handleChange} value={formData.email} placeholder="Email" className="w-full p-2 border rounded" />
+            <select name="tripType" onChange={handleChange} value={formData.tripType} className="w-full p-2 border rounded">
+              <option value="ONEWAY">One Way</option>
+              <option value="ROUND_TRIP">Round Trip</option>
+              <option value="MULTICITY">Multi City</option>
+            </select>
+            <select name="travelClass" onChange={handleChange} value={formData.travelClass} className="w-full p-2 border rounded">
+              <option value="ECONOMY">Economy</option>
+              <option value="PREMIUM_ECONOMY">Premium Economy</option>
+              <option value="BUSINESS">Business</option>
+            </select>
+            <input name="adult" type="number" min="1" onChange={handleChange} value={formData.adult} placeholder="Number of Adults" className="w-full p-2 border rounded" />
+            <input name="childCount" type="number" min="0" onChange={handleChange} value={formData.childCount} placeholder="Number of Children" className="w-full p-2 border rounded" />
+            <input name="childAges" onChange={handleChange} value={formData.childAges} placeholder="Child Ages (comma separated)" className="w-full p-2 border rounded" />
+            <input name="fromAirport" onChange={handleChange} value={formData.fromAirport} placeholder="From Airport Code (e.g., BLR)" className="w-full p-2 border rounded" />
+            <input name="toAirport" onChange={handleChange} value={formData.toAirport} placeholder="To Airport Code (e.g., HYD)" className="w-full p-2 border rounded" />
+            <input name="departureDate" type="date" onChange={handleChange} value={formData.departureDate} className="w-full p-2 border rounded" />
+            {formData.tripType === 'ROUND_TRIP' && (
+              <input name="returnDate" type="date" onChange={handleChange} value={formData.returnDate} className="w-full p-2 border rounded" />
+            )}
+            <input name="reason" onChange={handleChange} value={formData.reason} placeholder="Reason for Travel" className="w-full p-2 border rounded" />
+            <input name="approverName" onChange={handleChange} value={formData.approverName} placeholder="Approver Name" className="w-full p-2 border rounded" />
+            <input name="approverEmail" onChange={handleChange} value={formData.approverEmail} placeholder="Approver Email" className="w-full p-2 border rounded" />
+            <div className="flex gap-2">
+              <button onClick={() => setShowFlightModal(false)} className="flex-1 py-2 bg-muted rounded">Cancel</button>
+              <button onClick={handleSubmit} className="flex-1 py-2 bg-primary text-white rounded">Submit Request</button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -757,7 +1293,11 @@ const NewAdvancedFiltersModal = () => {
                 </>
               ) : resource.isService ? (
                 <>
-                  {resource.title.includes('Translation') ? 'Get Translation Quote' : resource.title.includes('Accommodation') ? 'Accommodation Assistance' : resource.title.includes('APS') ? 'Check APS Eligibility' : 'Get Service'}
+                  {resource.title.includes('Translation') ? 'Get Translation Quote' : 
+     resource.title.includes('Accommodation') ? 'Accommodation Assistance' : 
+     resource.title.includes('APS') ? 'Check APS Eligibility' :
+     resource.title.includes('Interview') ? 'Start Interview Prep' :
+     'Get Service'}
                   <ExternalLink className="h-4 w-4" />
                 </>
               ) : resource.isCalculator ? (
@@ -780,6 +1320,11 @@ const NewAdvancedFiltersModal = () => {
       <NewAdvancedFiltersModal />
       <PaymentModal />
       <CalculatorModal />
+      <InterviewCountryModal />
+      <InterviewQuestionsModal />
+      <InterviewPaymentModal />
+      <DownloadTemplatesModal />
+      <FlightBookingModal />
 
       {/* Replace styled-jsx with standard style tag */}
       <style>{`
@@ -908,7 +1453,7 @@ export function IeltsCalculator({ isModal = false }: { isModal?: boolean }) {
 
         <div className="p-4 bg-card rounded-xl border border-border">
           {result ? (
-            <div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
               <h3 className="text-lg font-semibold mb-4 text-primary">Your IELTS Results</h3>
               <div className="space-y-3 mb-4">
                 {(['listening', 'reading', 'writing', 'speaking'] as const).map(key => (
@@ -928,7 +1473,7 @@ export function IeltsCalculator({ isModal = false }: { isModal?: boolean }) {
                 <p className="font-medium mb-1">{result.interpretation.level}</p>
                 <p className="text-sm text-muted-foreground">{result.interpretation.description}</p>
               </div>
-            </div>
+            </motion.div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
               <p>Enter all scores to see results</p>
@@ -1094,7 +1639,7 @@ export function EctsCalculator({ isModal = false }: { isModal?: boolean }) {
 
         <div className="p-4 bg-card rounded-xl border border-border">
           {result ? (
-            <div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
               <h3 className="text-lg font-semibold mb-4 text-primary">Calculation Results</h3>
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between">
@@ -1121,7 +1666,7 @@ export function EctsCalculator({ isModal = false }: { isModal?: boolean }) {
                 <span className="font-medium">{result.result.ectsCreditsRounded}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-4">Note: Based on 30 hours per ECTS credit standard.</p>
-            </div>
+            </motion.div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
               <p>Enter all values to see results</p>
@@ -1240,7 +1785,7 @@ export function GermanGradeCalculatorComponent({ isModal = false }: { isModal?: 
 
         <div className="p-4 bg-card rounded-xl border border-border">
           {result ? (
-            <div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
               <h3 className="text-lg font-semibold mb-4 text-primary">Conversion Results</h3>
               <div className="p-3 bg-primary/10 rounded-lg mb-4">
                 <div className="flex justify-between items-center">
@@ -1257,7 +1802,7 @@ export function GermanGradeCalculatorComponent({ isModal = false }: { isModal?: 
                 <span className={`font-medium ${result.isPassing ? 'text-green-600' : 'text-red-600'}`}>{result.isPassing ? 'Yes' : 'No'}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-4">Note: Based on the modified Bavarian formula used by German universities.</p>
-            </div>
+            </motion.div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
               <p>Enter all values to see results</p>

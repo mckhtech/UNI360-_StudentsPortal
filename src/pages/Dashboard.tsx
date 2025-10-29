@@ -19,6 +19,7 @@ import {
 import heroImage from "/assets/hero-image.jpg";
 import { useAuth } from "@/contexts/AuthContext";
 import { getProfileCompletion, getDashboardData } from "@/services/profile";
+import { getProfileProgress, getCurrentStep, getProfileSteps, getStudentApplications } from "@/services/studentProfile";
 import { getUserUUID } from "@/services/utils";
 import { useState, useEffect } from "react";
 
@@ -100,12 +101,20 @@ export default function Dashboard() {
   const { user } = useAuth();
   
   // State for dashboard data
-  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   
-  // Calculate enhanced profile completion
-  const profileCompletion = calculateDetailedProfileCompletion(user);
+  // State for backend profile progress
+  const [profileCompletion, setProfileCompletion] = useState(0);
+  const [currentStepData, setCurrentStepData] = useState(null);
+  const [profileSteps, setProfileSteps] = useState(defaultProgressSteps);
+  
+  // State for applications data
+  const [activeApplications, setActiveApplications] = useState(0);
+  const [offersReceived, setOffersReceived] = useState(0);
+  const [successRate, setSuccessRate] = useState(0);
+  
   const userUUID = getUserUUID(user);
   const isProfileComplete = profileCompletion === 100;
   console.log(isProfileComplete === true ? "Profile is complete" : "Profile is incomplete");
@@ -120,17 +129,145 @@ export default function Dashboard() {
     return 'Student';
   };
   
-  // Fetch dashboard data
+  // Fetch dashboard data and profile progress from backend
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await getDashboardData();
-        setDashboardData(data);
-      } catch (err) {
+        
+        // Fetch applications data from backend
+        // Fetch applications data from backend
+try {
+  const applicationsResponse = await getStudentApplications();
+  console.log('[Dashboard] Applications response:', applicationsResponse);
+  
+  // Handle different response structures (same as Applications.tsx)
+  let apps = [];
+  if (applicationsResponse?.data?.applications) {
+    apps = applicationsResponse.data.applications;
+  } else if (Array.isArray(applicationsResponse?.data)) {
+    apps = applicationsResponse.data;
+  } else if (Array.isArray(applicationsResponse)) {
+    apps = applicationsResponse;
+  } else if (applicationsResponse?.applications) {
+    apps = applicationsResponse.applications;
+  }
+  
+  console.log('[Dashboard] Parsed applications:', apps);
+  
+  // Calculate stats - MATCH Applications.tsx logic
+  const activeApps = apps.filter(app => {
+    const status = (app.status || 'draft').toLowerCase();
+    return status !== 'rejected' && status !== 'withdrawn';
+  }).length;
+  
+  const offers = apps.filter(app => {
+    const status = (app.status || '').toLowerCase();
+    return status === 'offer' || status === 'accepted';
+  }).length;
+  
+  // Calculate success rate
+  const submittedApps = apps.filter(app => {
+    const status = (app.status || 'draft').toLowerCase();
+    return status !== 'draft';
+  }).length;
+  
+  const acceptedApps = apps.filter(app => {
+    const status = (app.status || '').toLowerCase();
+    return status === 'accepted' || status === 'offer';
+  }).length;
+  
+  const rate = submittedApps > 0 ? Math.round((acceptedApps / submittedApps) * 100) : 0;
+  
+  console.log('[Dashboard] Stats - Active:', activeApps, 'Offers:', offers, 'Success Rate:', rate);
+  
+  setActiveApplications(activeApps);
+  setOffersReceived(offers);
+  setSuccessRate(rate);
+  setDashboardData({ applications: apps });// Store for recent applications display
+        } catch (appsErr: any) {
+          console.warn('Applications API error:', appsErr);
+          // Set defaults if API fails
+          setActiveApplications(0);
+          setOffersReceived(0);
+          setSuccessRate(0);
+        }
+        
+        // Fetch profile progress from backend API
+        // Use /builder/progress endpoint for percentage (as requested)
+        try {
+          const progressResponse = await getProfileProgress();
+          console.log('[Dashboard] Profile progress response:', progressResponse);
+          
+          // Extract progress data from response
+          const progressData = progressResponse.data || progressResponse;
+          const percentage = progressData.percentage || 0;
+          
+          console.log('[Dashboard] Profile completion percentage from progress API:', percentage);
+          setProfileCompletion(percentage);
+          
+          // Try to fetch current step and steps (may not be available)
+          try {
+            const current = await getCurrentStep();
+            setCurrentStepData(current.data || current);
+          } catch (stepErr) {
+            console.log('[Dashboard] Current step not available:', stepErr);
+          }
+          
+          try {
+            const stepsResponse = await getProfileSteps();
+            console.log('[Dashboard] Steps response:', stepsResponse);
+            
+            // Handle different response structures
+            let stepsData = stepsResponse;
+            
+            // If response has data wrapper
+            if (stepsResponse && stepsResponse.data) {
+              stepsData = stepsResponse.data;
+            }
+            
+            // If data has stepsStatus field
+            if (stepsData && stepsData.stepsStatus) {
+              stepsData = stepsData.stepsStatus;
+            }
+            
+            // Map backend steps to UI format
+            if (Array.isArray(stepsData) && stepsData.length > 0) {
+              const mappedSteps = stepsData.map((step, index) => ({
+                step: step.order || step.step || step.stepNumber || index + 1,
+                title: step.title || step.stepTitle || step.stepId || `Step ${index + 1}`,
+                completed: step.completed === true || step.status === 'completed',
+                current: step.current === true || step.status === 'in_progress',
+              }));
+              
+              console.log('[Dashboard] Mapped steps:', mappedSteps);
+              setProfileSteps(mappedSteps);
+              // Save to localStorage for fallback
+              localStorage.setItem('userProgress', JSON.stringify(mappedSteps));
+            } else {
+              console.log('[Dashboard] No steps data available, using defaults');
+            }
+          } catch (stepsErr) {
+            console.log('[Dashboard] Steps data not available:', stepsErr);
+          }
+        } catch (profileErr) {
+          console.warn('Profile progress API error, using fallback:', profileErr);
+          // Fallback to local calculation if backend API fails
+          const fallbackCompletion = calculateDetailedProfileCompletion(user);
+          setProfileCompletion(fallbackCompletion);
+          // Try to load from localStorage
+          const savedProgress = localStorage.getItem('userProgress');
+          if (savedProgress) {
+            setProfileSteps(JSON.parse(savedProgress));
+          }
+        }
+      } catch (err: any) {
         console.error('Dashboard data fetch error:', err);
-        setError(err.message || 'Failed to load dashboard data');
+        setError(err?.message || 'Failed to load dashboard data');
+        // Fallback to local calculation
+        const fallbackCompletion = calculateDetailedProfileCompletion(user);
+        setProfileCompletion(fallbackCompletion);
       } finally {
         setLoading(false);
       }
@@ -146,96 +283,119 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getDashboardData();
-      setDashboardData(data);
-    } catch (err) {
-      setError(err.message || 'Failed to load dashboard data');
+      
+      try {
+  const applicationsResponse = await getStudentApplications();
+  
+  // Same parsing logic
+  let apps = [];
+  if (applicationsResponse?.data?.applications) {
+    apps = applicationsResponse.data.applications;
+  } else if (Array.isArray(applicationsResponse?.data)) {
+    apps = applicationsResponse.data;
+  } else if (Array.isArray(applicationsResponse)) {
+    apps = applicationsResponse;
+  } else if (applicationsResponse?.applications) {
+    apps = applicationsResponse.applications;
+  }
+  
+  // Same calculation logic
+  const activeApps = apps.filter(app => {
+    const status = (app.status || 'draft').toLowerCase();
+    return status !== 'rejected' && status !== 'withdrawn';
+  }).length;
+  
+  const offers = apps.filter(app => {
+    const status = (app.status || '').toLowerCase();
+    return status === 'offer' || status === 'accepted';
+  }).length;
+  
+  const submittedApps = apps.filter(app => {
+    const status = (app.status || 'draft').toLowerCase();
+    return status !== 'draft';
+  }).length;
+  
+  const acceptedApps = apps.filter(app => {
+    const status = (app.status || '').toLowerCase();
+    return status === 'accepted' || status === 'offer';
+  }).length;
+  
+  const rate = submittedApps > 0 ? Math.round((acceptedApps / submittedApps) * 100) : 0;
+  
+  setActiveApplications(activeApps);
+  setOffersReceived(offers);
+  setSuccessRate(rate);
+  setDashboardData({ applications: apps });
+      } catch (appsErr: any) {
+        console.warn('Applications retry failed:', appsErr);
+        setActiveApplications(0);
+        setOffersReceived(0);
+        setSuccessRate(0);
+      }
+      
+      // Retry profile progress fetch
+      try {
+        const progressResponse = await getProfileProgress();
+        const progressData = progressResponse.data || progressResponse;
+        const percentage = progressData.percentage || 0;
+        
+        console.log('[Dashboard] Retry - Profile percentage:', percentage);
+        setProfileCompletion(percentage);
+        
+        try {
+          const current = await getCurrentStep();
+          setCurrentStepData(current.data || current);
+        } catch (e) {
+          console.log('[Dashboard] Current step retry failed');
+        }
+        
+        try {
+          const stepsResponse = await getProfileSteps();
+          
+          let stepsData = stepsResponse;
+          if (stepsResponse && stepsResponse.data) {
+            stepsData = stepsResponse.data;
+          }
+          if (stepsData && stepsData.stepsStatus) {
+            stepsData = stepsData.stepsStatus;
+          }
+          
+          if (Array.isArray(stepsData) && stepsData.length > 0) {
+            const mappedSteps = stepsData.map((step, index) => ({
+              step: step.order || step.step || step.stepNumber || index + 1,
+              title: step.title || step.stepTitle || step.stepId || `Step ${index + 1}`,
+              completed: step.completed === true || step.status === 'completed',
+              current: step.current === true || step.status === 'in_progress',
+            }));
+            setProfileSteps(mappedSteps);
+          }
+        } catch (e) {
+          console.log('[Dashboard] Steps retry failed');
+        }
+      } catch (profileErr) {
+        console.warn('Profile progress retry failed:', profileErr);
+        setProfileCompletion(calculateDetailedProfileCompletion(user));
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
-  // Get dynamic progress steps from API
+  // Get dynamic progress steps - now using state from backend
   const getProgressSteps = () => {
-    if (error || !dashboardData?.recent_applications?.[0]?.timeline) {
-      // Fallback to saved progress or default when API is down
-      const savedProgress = localStorage.getItem('userProgress');
-      if (savedProgress) {
-        return JSON.parse(savedProgress);
-      }
-      return defaultProgressSteps;
-    }
-
-    const timeline = dashboardData.recent_applications[0].timeline;
-    const progressSteps = [
-      { 
-        step: 1, 
-        title: "Profile Creation", 
-        completed: true, 
-        current: false 
-      },
-      { 
-        step: 2, 
-        title: "Document Collection", 
-        completed: timeline[0]?.status === 'completed', 
-        current: timeline[0]?.status === 'in_progress' 
-      },
-      { 
-        step: 3, 
-        title: "Verification", 
-        completed: timeline[1]?.status === 'completed', 
-        current: timeline[1]?.status === 'in_progress' 
-      },
-      { 
-        step: 4, 
-        title: "University Search", 
-        completed: timeline[2]?.status === 'completed', 
-        current: timeline[2]?.status === 'in_progress' 
-      },
-      { 
-        step: 5, 
-        title: "Application", 
-        completed: timeline[3]?.status === 'completed', 
-        current: timeline[3]?.status === 'in_progress' 
-      },
-      { 
-        step: 6, 
-        title: "Document Generation", 
-        completed: timeline[4]?.status === 'completed', 
-        current: timeline[4]?.status === 'in_progress' 
-      },
-      { 
-        step: 7, 
-        title: "Block Account", 
-        completed: timeline[5]?.status === 'completed', 
-        current: timeline[5]?.status === 'in_progress' 
-      },
-      { 
-        step: 8, 
-        title: "Interview", 
-        completed: timeline[6]?.status === 'completed', 
-        current: timeline[6]?.status === 'in_progress' 
-      },
-      { 
-        step: 9, 
-        title: "Flywire", 
-        completed: timeline[7]?.status === 'completed', 
-        current: timeline[7]?.status === 'in_progress' 
-      },
-    ];
-
-    // Save current progress to localStorage for fallback
-    localStorage.setItem('userProgress', JSON.stringify(progressSteps));
-    return progressSteps;
+    // Use profileSteps from state (loaded from backend)
+    return profileSteps;
   };
   
   const countryData = {
     DE: {
       greeting: "Guten Tag! Ready for Germany?",
       stats: {
-        applications: dashboardData?.active_applications || 0,
-        offers: 1,
-        acceptance: 78,
+        applications: activeApplications,
+        offers: offersReceived,
+        acceptance: successRate,
         universities: "Technical University of Munich, RWTH Aachen, Heidelberg University"
       },
       nextSteps: [
@@ -248,9 +408,9 @@ export default function Dashboard() {
     UK: {
       greeting: "Hello! Ready for the UK?",
       stats: {
-        applications: dashboardData?.active_applications || 0,
-        offers: 0,
-        acceptance: 65,
+        applications: activeApplications,
+        offers: offersReceived,
+        acceptance: successRate,
         universities: "Imperial College London, University of Edinburgh"
       },
       nextSteps: [
@@ -269,32 +429,42 @@ export default function Dashboard() {
   const overallProgress = error ? 0 : ((completedSteps) / progressSteps.length) * 100;
 
   // Format recent applications for display
-  const formatRecentApplications = (applications) => {
-    if (!applications || applications.length === 0) {
-      return [
-        {
-          type: "info",
-          title: "No recent applications",
-          subtitle: "Start your first application to see activity here",
-          time: "Just now",
-          status: "info"
-        }
-      ];
-    }
+  const formatRecentApplications = (data) => {
+  // Extract applications array properly
+  const applications = data?.applications || [];
+  
+  if (!applications || applications.length === 0) {
+    return [
+      {
+        type: "info",
+        title: "No recent applications",
+        subtitle: "Start your first application to see activity here",
+        time: "Just now",
+        status: "info"
+      }
+    ];
+  }
 
-    return applications.slice(0, 3).map((app) => {
-      const statusInfo = getApplicationStatusInfo(app.status);
-      
-      return {
-        type: "application",
-        title: `Application to ${app.university_name}`,
-        subtitle: app.course_name,
-        time: "Recently",
-        status: statusInfo.variant,
-        priority: app.priority_level
-      };
-    });
-  };
+  // Sort by most recent and take top 3
+  const sortedApps = [...applications].sort((a, b) => {
+    const dateA = new Date(a.submittedAt || a.createdAt || 0);
+    const dateB = new Date(b.submittedAt || b.createdAt || 0);
+    return dateB - dateA;
+  });
+
+  return sortedApps.slice(0, 3).map((app) => {
+    const statusInfo = getApplicationStatusInfo((app.status || 'draft').toLowerCase());
+    
+    return {
+      type: "application",
+      title: `Application to ${app.universityName || 'University'}`,
+      subtitle: app.programName || app.targetCourseName || 'Course',
+      time: app.submittedAt ? "Recently submitted" : "Draft",
+      status: statusInfo.variant,
+      priority: 1
+    };
+  });
+};
 
   // Helper function to get status info
   const getApplicationStatusInfo = (status) => {
@@ -310,7 +480,7 @@ export default function Dashboard() {
     return statusMap[status] || { variant: "info", label: status };
   };
 
-  const recentApplications = formatRecentApplications(dashboardData?.recent_applications);
+  const recentApplications = formatRecentApplications(dashboardData);
 
   return (
     <motion.div 

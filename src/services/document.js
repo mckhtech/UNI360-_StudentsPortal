@@ -1,10 +1,12 @@
 // Fixed documents.js API file
-import { getCommonHeaders, handleApiError, getToken } from './utils.js';
+import { handleApiError } from './utils.js';
+import { makeAuthenticatedRequest, getAuthHeaders } from './tokenService.js';
 
 const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/student`;
 
 /**
  * API Helper function to handle requests with proper headers and error handling
+ * Now uses centralized token service
  */
 const apiRequest = async (endpoint, options = {}) => {
   let url = `${BASE_URL}${endpoint}`;
@@ -14,42 +16,58 @@ const apiRequest = async (endpoint, options = {}) => {
     url = `${url}${sep}ngrok-skip-browser-warning=true`;
   }
 
-  const baseHeaders = { ...getCommonHeaders(), ...options.headers };
   const isFormData =
     options?.body && typeof FormData !== 'undefined' && options.body instanceof FormData;
-  if (isFormData && baseHeaders['Content-Type']) delete baseHeaders['Content-Type'];
-
-  const config = {
-    method: options.method || 'GET',
-    headers: {
-      'ngrok-skip-browser-warning': 'true',
-      ...baseHeaders,
-    },
-    ...options,
-  };
 
   try {
-    console.log(`Making documents API request to: ${url}`);
-    const response = await fetch(url, config);
-    console.log(`API response status: ${response.status}`);
+    console.log(`[Documents] Making API request to: ${url}`);
+    
+    // For FormData, we need to handle headers differently
+    if (isFormData) {
+      const headers = await getAuthHeaders();
+      // Remove Content-Type for FormData - browser will set it with boundary
+      delete headers['Content-Type'];
+      
+      const config = {
+        method: options.method || 'POST',
+        headers: {
+          ...headers,
+          ...options.headers,
+        },
+        body: options.body,
+      };
+      
+      const response = await fetch(url, config);
+      console.log(`[Documents] API response status: ${response.status}`);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error(`HTTP error! status: ${response.status}`, errorData);
-      const err = handleApiError({ status: response.status, ...errorData });
-      err.status = response.status;
-      throw err;
-    }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`HTTP error! status: ${response.status}`, errorData);
+        const err = handleApiError({ status: response.status, ...errorData });
+        err.status = response.status;
+        throw err;
+      }
 
-    const ct = response.headers.get('content-type') || '';
-    if (ct.includes('application/json')) {
-      const data = await response.json();
-      console.log(`Documents API response from ${endpoint}:`, data);
-      return data;
+      const ct = response.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await response.json();
+        console.log(`[Documents] API response:`, data);
+        return data;
+      }
+      return await response.blob();
     }
-    return await response.blob();
+    
+    // For regular JSON requests, use makeAuthenticatedRequest
+    const config = {
+      method: options.method || 'GET',
+      ...options,
+    };
+    
+    const data = await makeAuthenticatedRequest(endpoint, config);
+    console.log(`[Documents] API response:`, data);
+    return data;
   } catch (error) {
-    console.error(`Documents API request failed for ${endpoint}:`, error);
+    console.error(`[Documents] API request failed for ${endpoint}:`, error);
     throw handleApiError(error);
   }
 };
@@ -113,9 +131,6 @@ const DOCUMENT_TYPES = {
 
 export const getDocumentStatusOverview = async () => {
   try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
-
     const response = await apiRequest('/document-status-overview/');
     return response;
   } catch (error) {
@@ -160,9 +175,6 @@ const resolveApplicationId = async (country) => {
  */
 export const getDocumentTemplates = async (opts = {}) => {
   try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
-
     let applicationId = opts.application_id || (await resolveApplicationId(opts.country));
     if (!applicationId) throw new Error('application_id is required');
 
@@ -174,6 +186,23 @@ export const getDocumentTemplates = async (opts = {}) => {
     return [];
   } catch (error) {
     console.error('Get document templates error:', error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Get uploaded documents for an application
+ */
+export const getApplicationDocuments = async (applicationId) => {
+  try {
+    if (!applicationId) throw new Error('application_id is required');
+
+    const qs = new URLSearchParams({ application_id: String(applicationId) }).toString();
+    const response = await apiRequest(`/documents/?${qs}`);
+
+    return Array.isArray(response) ? response : [];
+  } catch (error) {
+    console.error('Get application documents error:', error);
     throw handleApiError(error);
   }
 };
@@ -203,8 +232,6 @@ const validateDocumentType = (documentType, country) => {
  * SINGLE DOCUMENT UPLOAD - Uses correct endpoint: /documents/upload_document/
  */
 export const uploadDocument = async ({ application_id, field, file, country }) => {
-  const token = getToken();
-  if (!token) throw new Error('No authentication token found');
   if (!application_id) throw new Error('application_id is required');
   if (!field) throw new Error('field (document_type) is required');
   if (!file) throw new Error('file is required');
@@ -224,7 +251,6 @@ export const uploadDocument = async ({ application_id, field, file, country }) =
   // Use the correct endpoint: /documents/upload_document/
   return await apiRequest('/documents/upload_document/', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
     body: fd,
   });
 };
@@ -233,9 +259,6 @@ export const uploadDocument = async ({ application_id, field, file, country }) =
  * BULK DOCUMENT UPLOAD - Uses correct endpoint: /documents/bulk_upload/
  */
 export const uploadBulkDocuments = async (documentsList) => {
-  const token = getToken();
-  if (!token) throw new Error('No authentication token found');
-
   if (!Array.isArray(documentsList) || !documentsList.length) {
     throw new Error('No documents to upload');
   }
@@ -272,7 +295,6 @@ export const uploadBulkDocuments = async (documentsList) => {
   // Use the correct endpoint: /documents/bulk_upload/
   return await apiRequest('/documents/bulk_upload/', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
     body: fd,
   });
 };
@@ -281,9 +303,6 @@ export const uploadBulkDocuments = async (documentsList) => {
  * UK Documents Upload Helper
  */
 export const uploadUKDocuments = async (documentsData) => {
-  const token = getToken();
-  if (!token) throw new Error('No authentication token found');
-
   // Single document upload
   if (documentsData?.field && documentsData?.file) {
     return uploadDocument({
@@ -320,9 +339,6 @@ export const uploadUKDocuments = async (documentsData) => {
  * Germany Documents Upload Helper
  */
 export const uploadGermanyDocuments = async (documentsData) => {
-  const token = getToken();
-  if (!token) throw new Error('No authentication token found');
-
   // Single document upload
   if (documentsData?.field && documentsData?.file) {
     return uploadDocument({
@@ -359,23 +375,21 @@ export const uploadGermanyDocuments = async (documentsData) => {
  * Download document
  */
 export const downloadDocumentById = async (documentId) => {
-  const token = getToken();
-  if (!token) throw new Error('No authentication token found');
+  const metaResponse = await apiRequest(`/documents/${documentId}/download/`);
 
-  const response = await fetch(`${BASE_URL}/documents/${documentId}/download/`, {
+  // Fetch the actual file using the file_url
+  const headers = await getAuthHeaders();
+  const fileResponse = await fetch(metaResponse.file_url, {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'ngrok-skip-browser-warning': 'true',
-    },
+    headers: headers,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw handleApiError({ status: response.status, ...errorData });
+  if (!fileResponse.ok) {
+    const errorData = await fileResponse.json().catch(() => ({}));
+    throw handleApiError({ status: fileResponse.status, ...errorData });
   }
 
-  return await response.blob();
+  return await fileResponse.blob();
 };
 
 /**
@@ -480,8 +494,6 @@ export const transformDocumentStatusForUI = (statusData) => {
  */
 export const getNotifications = async () => {
   try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
     const response = await apiRequest('/notifications/');
     return Array.isArray(response) ? response : [];
   } catch (error) {
@@ -498,8 +510,6 @@ export const markAllNotificationsAsRead = async () =>
 
 export const getReusableDocuments = async () => {
   try {
-    const token = getToken();
-    if (!token) throw new Error('No authentication token found');
     // ✅ Align with your API spec: /api/student/documents/reusable/
     const response = await apiRequest('/documents/reusable/');
     return Array.isArray(response) ? response : [];
@@ -521,6 +531,9 @@ export default {
   getDocumentTemplatesByCountry,
   getDocumentRequirements,
   getDocumentStatusOverview,
+
+  // Documents
+  getApplicationDocuments,
 
   // Uploads
   uploadDocument,

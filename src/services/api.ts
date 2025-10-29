@@ -33,7 +33,6 @@ const apiRequest = async (endpoint, options = {}) => {
     
     console.log(`[API] Response from ${endpoint}:`, data);
     
-    // Handle response data structure
     if (data && data.success && data.data !== undefined) {
       return data.data;
     }
@@ -42,7 +41,6 @@ const apiRequest = async (endpoint, options = {}) => {
   } catch (error) {
     console.error(`[API] Request failed for ${endpoint}:`, error);
     
-    // Return empty arrays for list endpoints to prevent app crashes
     if (
       endpoint.includes('cities') || 
       endpoint.includes('states') || 
@@ -93,7 +91,7 @@ export const universityAPI = {
     return await apiRequest('/api/v1/students/universities/filters');
   },
 
-  // Get dynamic filters from backend
+  // Get dynamic filters from backend - NEW ENDPOINT
   getDynamicFilters: async () => {
     return await apiRequest('/api/v1/universities/filters');
   },

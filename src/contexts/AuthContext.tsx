@@ -377,12 +377,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         console.log("AuthContext: Signup response received:", userWithUUID);
 
-        // Store tokens and user data
-        setTokens(response.accessToken, response.refreshToken);
-        setUser(userWithUUID);
-
-        dispatch({ type: "LOGIN_SUCCESS", payload: userWithUUID });
-        setupTokenRefresh();
+        // Check if tokens are provided (backward compatibility)
+        if (response.accessToken && response.refreshToken) {
+          // Old flow: Tokens provided immediately
+          setTokens(response.accessToken, response.refreshToken);
+          setUser(userWithUUID);
+          dispatch({ type: "LOGIN_SUCCESS", payload: userWithUUID });
+          setupTokenRefresh();
+          console.log("AuthContext: Signup successful with immediate authentication");
+        } else {
+          // New flow: Email verification required, no tokens yet
+          setUser(userWithUUID);
+          
+          // Don't dispatch LOGIN_SUCCESS since user is not authenticated yet
+          dispatch({ type: "SET_LOADING", payload: false });
+          
+          console.log("AuthContext: Signup successful, email verification required");
+          console.log("Next steps:", response.nextSteps);
+          
+          // Return response with email verification information
+          return {
+            ...response,
+            user: userWithUUID,
+            requiresEmailVerification: response.requiresEmailVerification || true,
+            message: response.welcomeMessage || "Registration successful! Please check your email to verify your account."
+          };
+        }
 
         console.log("AuthContext: Signup successful, user state updated");
       } catch (error: any) {

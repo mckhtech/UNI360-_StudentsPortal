@@ -3,6 +3,7 @@ import { Check, ArrowRight, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { getProfileSteps, getCurrentStep, validateProfile, resetProfileBuilder, getProfileProgress, saveProfileData, loadProfileData } from "@/services/studentProfile";
 
 // Define User interface with all required properties
 interface User {
@@ -150,6 +151,8 @@ export default function ProfileBuilder() {
   });
 
   const [formData, setFormData] = useState<FormData>(getInitialFormData());
+  const [backendStepsLoaded, setBackendStepsLoaded] = useState(false);
+  const [backendDataLoaded, setBackendDataLoaded] = useState(false);
 
   // localStorage functions
   const saveToLocalStorage = (data: Partial<LocalStorageData>) => {
@@ -578,154 +581,107 @@ export default function ProfileBuilder() {
     }
   };
 
-  // Initialize component with localStorage data
+  // Initialize component with localStorage data and backend API
   useEffect(() => {
     console.log("ProfileBuilder: Initializing component");
 
-    if (user) {
-      const savedData = getFromLocalStorage();
-
-      // Merge user data with saved localStorage data
-      const mergedFormData: FormData = {
-        personal: {
-          firstName:
-            savedData.formData.personal.firstName ||
-            (user as User).firstName ||
-            "",
-          lastName:
-            savedData.formData.personal.lastName ||
-            (user as User).lastName ||
-            "",
-          email:
-            savedData.formData.personal.email || (user as User).email || "",
-          phone:
-            savedData.formData.personal.phone || (user as User).phone || "",
-          dateOfBirth:
-            savedData.formData.personal.dateOfBirth ||
-            (user as User).dateOfBirth ||
-            "",
-          nationality:
-            savedData.formData.personal.nationality ||
-            (user as User).nationality ||
-            "",
-        },
-        academics: {
-          educationLevel:
-            savedData.formData.academics.educationLevel ||
-            (user as User).educationLevel ||
-            "",
-          fieldOfStudy:
-            savedData.formData.academics.fieldOfStudy ||
-            (user as User).fieldOfStudy ||
-            "",
-          institution:
-            savedData.formData.academics.institution ||
-            (user as User).institution ||
-            "",
-          graduationYear:
-            savedData.formData.academics.graduationYear ||
-            (user as User).graduationYear ||
-            "",
-          gpa: savedData.formData.academics.gpa || (user as User).gpa || "",
-          gradingSystem:
-            savedData.formData.academics.gradingSystem ||
-            (user as User).gradingSystem ||
-            "",
-        },
-        testScores: {
-          ieltsOverall:
-            savedData.formData.testScores.ieltsOverall ||
-            (user as User).ieltsOverall ||
-            "",
-          ieltsListening:
-            savedData.formData.testScores.ieltsListening ||
-            (user as User).ieltsListening ||
-            "",
-          ieltsReading:
-            savedData.formData.testScores.ieltsReading ||
-            (user as User).ieltsReading ||
-            "",
-          ieltsWriting:
-            savedData.formData.testScores.ieltsWriting ||
-            (user as User).ieltsWriting ||
-            "",
-          ieltsSpeaking:
-            savedData.formData.testScores.ieltsSpeaking ||
-            (user as User).ieltsSpeaking ||
-            "",
-          toeflTotal:
-            savedData.formData.testScores.toeflTotal ||
-            (user as User).toeflTotal ||
-            "",
-          greTotal:
-            savedData.formData.testScores.greTotal ||
-            (user as User).greTotal ||
-            "",
-          gmatTotal:
-            savedData.formData.testScores.gmatTotal ||
-            (user as User).gmatTotal ||
-            "",
-        },
-        experience: {
-          workExperience:
-            savedData.formData.experience.workExperience ||
-            (user as User).workExperience ||
-            "",
-          internships:
-            savedData.formData.experience.internships ||
-            (user as User).internships ||
-            "",
-          projects:
-            savedData.formData.experience.projects ||
-            (user as User).projects ||
-            "",
-          certifications:
-            savedData.formData.experience.certifications ||
-            (user as User).certifications ||
-            "",
-        },
-        preferences: {
-          targetCountries:
-            savedData.formData.preferences.targetCountries ||
-            (user as User).targetCountries ||
-            [],
-          preferredPrograms:
-            savedData.formData.preferences.preferredPrograms ||
-            (user as User).preferredPrograms ||
-            [],
-          studyLevel:
-            savedData.formData.preferences.studyLevel ||
-            (user as User).studyLevel ||
-            "",
-          intakePreference:
-            savedData.formData.preferences.intakePreference ||
-            (user as User).intakePreference ||
-            "",
-        },
-      };
-
-      setFormData(mergedFormData);
-
-      // Update word counts
-      setWordCounts({
-        workExperience: countWords(mergedFormData.experience.workExperience),
-        internships: countWords(mergedFormData.experience.internships),
-        projects: countWords(mergedFormData.experience.projects),
-        certifications: countWords(mergedFormData.experience.certifications),
-      });
-
-      // Set current step based on profile completion
-      if (isProfileComplete(mergedFormData)) {
-        setCurrentStep(6); // Show completion screen
-        setCompletedSteps([1, 2, 3, 4, 5]);
-      } else {
-        const nextIncompleteStep = getNextIncompleteStep(mergedFormData);
-        setCurrentStep(savedData.currentStep || nextIncompleteStep);
-        setCompletedSteps(savedData.completedSteps || []);
-      }
-
-      console.log("ProfileBuilder: Form data initialized:", mergedFormData);
-      console.log("ProfileBuilder: Current step set to:", currentStep);
+    if (user && !backendStepsLoaded && !backendDataLoaded) {
+      // Try to load from backend first
+      (async () => {
+        try {
+          const [steps, current, progressResponse, profileData] = await Promise.all([
+            getProfileSteps(),
+            getCurrentStep(),
+            getProfileProgress(),
+            loadProfileData(),
+          ]);
+          
+          console.log('ProfileBuilder: Loaded from backend:', { steps, current, progressResponse, profileData });
+          
+          // Extract percentage from progress response
+          const progressData = progressResponse.data || progressResponse;
+          const percentage = progressData.percentage || 0;
+          console.log('ProfileBuilder: Backend progress percentage:', percentage);
+          setBackendProgress(percentage);
+          
+          // Update current step from backend
+          if (current && current.stepNumber) {
+            setCurrentStep(current.stepNumber);
+          }
+          
+          // Update completed steps from backend
+          if (Array.isArray(steps)) {
+            const completed = steps
+              .filter(s => s.status === 'completed' || s.completed === true)
+              .map(s => s.step || s.stepNumber);
+            setCompletedSteps(completed);
+          }
+          
+          // Map loaded profile data to form structure
+          if (profileData) {
+            const mappedFormData: FormData = {
+              personal: {
+                firstName: (user as User).firstName || '',
+                lastName: (user as User).lastName || '',
+                email: (user as User).email || '',
+                phone: profileData.phone || '',
+                dateOfBirth: profileData.dateOfBirth || '',
+                nationality: profileData.nationality || '',
+              },
+              academics: {
+                educationLevel: profileData.educationLevel || '',
+                fieldOfStudy: profileData.fieldOfStudy || '',
+                institution: profileData.institution || '',
+                graduationYear: profileData.graduationYear || '',
+                gpa: profileData.gpa || '',
+                gradingSystem: profileData.gradingSystem || '',
+              },
+              testScores: {
+                ieltsOverall: profileData.ieltsOverall || '',
+                ieltsListening: profileData.ieltsListening || '',
+                ieltsReading: profileData.ieltsReading || '',
+                ieltsWriting: profileData.ieltsWriting || '',
+                ieltsSpeaking: profileData.ieltsSpeaking || '',
+                toeflTotal: profileData.toeflTotal || '',
+                greTotal: profileData.greTotal || '',
+                gmatTotal: profileData.gmatTotal || '',
+              },
+              experience: {
+                workExperience: profileData.workExperience || '',
+                internships: profileData.internships || '',
+                projects: profileData.projects || '',
+                certifications: profileData.certifications || '',
+              },
+              preferences: {
+                targetCountries: profileData.targetCountries || [],
+                preferredPrograms: profileData.preferredPrograms || [],
+                studyLevel: profileData.studyLevel || '',
+                intakePreference: profileData.intakePreference || '',
+              },
+            };
+            
+            setFormData(mappedFormData);
+            
+            // Update word counts
+            setWordCounts({
+              workExperience: countWords(mappedFormData.experience.workExperience),
+              internships: countWords(mappedFormData.experience.internships),
+              projects: countWords(mappedFormData.experience.projects),
+              certifications: countWords(mappedFormData.experience.certifications),
+            });
+            
+            console.log('ProfileBuilder: Backend profile data loaded and mapped to form');
+          }
+          
+          setBackendStepsLoaded(true);
+          setBackendDataLoaded(true);
+        } catch (backendError) {
+          console.warn('ProfileBuilder: Backend API failed, using localStorage:', backendError);
+          setBackendProgress(null); // Use local calculation on error
+          setBackendStepsLoaded(true); // Mark as loaded even on error to prevent retry
+          setBackendDataLoaded(true);
+        }
+      })();
     }
   }, [user]);
 
@@ -750,7 +706,9 @@ export default function ProfileBuilder() {
     { id: 6, title: "Review" },
   ];
 
-  const progress = calculateProgress(formData);
+  // Use backend progress if available, fallback to local calculation
+  const [backendProgress, setBackendProgress] = useState<number | null>(null);
+  const progress = backendProgress !== null ? backendProgress : calculateProgress(formData);
 
   // Validation functions
   const validatePhoneNumber = (phone: string): boolean => {
@@ -976,11 +934,6 @@ export default function ProfileBuilder() {
     setIsSaving(true);
     try {
       const profileData = {
-        firstName: formData.personal.firstName || "",
-        lastName: formData.personal.lastName || "",
-        name: `${formData.personal.firstName || ""} ${
-          formData.personal.lastName || ""
-        }`.trim(),
         phone: formData.personal.phone || "",
         dateOfBirth: formData.personal.dateOfBirth || "",
         nationality: formData.personal.nationality || "",
@@ -1008,17 +961,26 @@ export default function ProfileBuilder() {
         internships: formData.experience.internships || "",
         projects: formData.experience.projects || "",
         certifications: formData.experience.certifications || "",
-        // Mark profile as complete
-        profileCompleted: true,
       };
 
-      await updateUserProfile(profileData);
+      // Save to backend using saveProfileData
+      await saveProfileData(profileData);
+      
+      // Also update user profile context (for firstName, lastName, email)
+      await updateUserProfile({
+        firstName: formData.personal.firstName || "",
+        lastName: formData.personal.lastName || "",
+        name: `${formData.personal.firstName || ""} ${
+          formData.personal.lastName || ""
+        }`.trim(),
+        profileCompleted: true,
+      });
 
       // Update global country state after successful profile save
       handleTargetCountryChange(formData.preferences.targetCountries);
 
       clearLocalStorage();
-      console.log("ProfileBuilder: Profile completed successfully");
+      console.log("ProfileBuilder: Profile completed and saved to backend successfully");
       setCurrentStep(6); // Go to review step
       setCompletedSteps([1, 2, 3, 4, 5]);
     } catch (error) {
@@ -1028,12 +990,52 @@ export default function ProfileBuilder() {
     }
   };
 
-  const nextStep = () => {
+  const nextStep = async () => {
     if (!validateCurrentStep()) {
       return;
     }
 
     if (currentStep < steps.length) {
+      // Save to backend before moving to next step
+      setIsSaving(true);
+      try {
+        const profileData = {
+          phone: formData.personal.phone || '',
+          dateOfBirth: formData.personal.dateOfBirth || '',
+          nationality: formData.personal.nationality || '',
+          educationLevel: formData.academics.educationLevel || '',
+          fieldOfStudy: formData.academics.fieldOfStudy || '',
+          institution: formData.academics.institution || '',
+          graduationYear: formData.academics.graduationYear || '',
+          gpa: formData.academics.gpa || '',
+          gradingSystem: formData.academics.gradingSystem || '',
+          targetCountries: formData.preferences.targetCountries || [],
+          preferredPrograms: formData.preferences.preferredPrograms || [],
+          studyLevel: formData.preferences.studyLevel || '',
+          intakePreference: formData.preferences.intakePreference || '',
+          ieltsOverall: formData.testScores.ieltsOverall || '',
+          ieltsListening: formData.testScores.ieltsListening || '',
+          ieltsReading: formData.testScores.ieltsReading || '',
+          ieltsWriting: formData.testScores.ieltsWriting || '',
+          ieltsSpeaking: formData.testScores.ieltsSpeaking || '',
+          toeflTotal: formData.testScores.toeflTotal || '',
+          greTotal: formData.testScores.greTotal || '',
+          gmatTotal: formData.testScores.gmatTotal || '',
+          workExperience: formData.experience.workExperience || '',
+          internships: formData.experience.internships || '',
+          projects: formData.experience.projects || '',
+          certifications: formData.experience.certifications || '',
+        };
+
+        await saveProfileData(profileData);
+        console.log('ProfileBuilder: Profile data saved to backend');
+      } catch (error) {
+        console.error('Error saving profile to backend:', error);
+        // Continue to next step even if save fails
+      } finally {
+        setIsSaving(false);
+      }
+      
       const newCompletedSteps = [...completedSteps];
       if (!newCompletedSteps.includes(currentStep)) {
         newCompletedSteps.push(currentStep);

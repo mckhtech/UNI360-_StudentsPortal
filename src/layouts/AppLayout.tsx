@@ -8,9 +8,10 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getNotifications,
+  getUnreadNotificationsCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
-} from "@/services/auth";
+} from "@/services/studentProfile";
 import UniLogo from "/assets/Uni360-logo.png";
 
 type Country = "DE" | "UK";
@@ -52,10 +53,11 @@ export function AppLayout() {
       setLoadingNotifications(true);
       setNotificationsError(null);
       const notificationsData = await getNotifications();
-      setNotifications(notificationsData);
-    } catch (error) {
+      // Ensure we always set an array
+      setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+    } catch (error: any) {
       console.error("Error fetching notifications:", error);
-      setNotificationsError(error.message || "Failed to load notifications");
+      setNotificationsError(error?.message || "Failed to load notifications");
       // Keep notifications as empty array on error
       setNotifications([]);
     } finally {
@@ -63,7 +65,8 @@ export function AppLayout() {
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  // Safely get unread count - ensure notifications is always an array
+  const unreadCount = Array.isArray(notifications) ? notifications.filter((n) => !n.is_read).length : 0;
 
   const handleNotificationRead = async (id: string | number) => {
     try {

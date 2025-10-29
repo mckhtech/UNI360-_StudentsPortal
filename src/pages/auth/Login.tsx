@@ -40,10 +40,12 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   useEffect(() => {
     clearError();
     setValidationErrors({});
+    setSuccessMessage('');
   }, [isSignUp, clearError]);
 
   // Validation functions
@@ -147,8 +149,18 @@ const Login: React.FC = () => {
         acceptTerms: signUpData.acceptTerms
       });
       
-      await signUp(signUpData);
-      // Navigation will be handled by the useEffect above when isAuthenticated becomes true
+      const result = await signUp(signUpData);
+      
+      // Check if email verification is required
+      if (result && result.requiresEmailVerification) {
+        console.log('Registration successful, email verification required');
+        // Show success message and switch to login mode
+        setSuccessMessage(result.message || 'Registration successful! Please check your email to verify your account.');
+        setIsSignUp(false);
+      } else {
+        // Old flow: Navigation will be handled by the useEffect above when isAuthenticated becomes true
+        console.log('Registration successful, user authenticated');
+      }
     } catch (error) {
       console.error('Sign up failed:', error);
     }
@@ -353,6 +365,18 @@ const FlipCard = ({
             >
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span className="text-sm">{error}</span>
+            </motion.div>
+          )}
+
+          {/* Success Message */}
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-2 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg flex items-start gap-2 text-green-700 dark:text-green-400"
+            >
+              <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span className="text-sm">{successMessage}</span>
             </motion.div>
           )}
 

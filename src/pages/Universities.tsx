@@ -37,7 +37,9 @@ import {
   Upload,
   Check,
 } from "lucide-react";
-import { universityAPI, courseAPI } from "@/services/api.js";
+import { universityAPI } from "@/services/api";
+import { createApplication, submitApplication } from "@/services/studentProfile";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Country = "DE" | "UK";
 
@@ -54,7 +56,7 @@ const filters = [
 ];
 
 // Course Modal Component
-const CourseModal = ({ university, isOpen, onClose }) => {
+const CourseModal = ({ university, isOpen, onClose, setSelectedCourse, setSelectedUniversity, setIsPaymentModalOpen, setIsFormModalOpen }) => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -70,21 +72,111 @@ const CourseModal = ({ university, isOpen, onClose }) => {
     }
   }, [isOpen, university]);
 
-  const loadCourses = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const coursesData = await universityAPI.getUniversityCourses(
-        university.id
-      );
-      setCourses(Array.isArray(coursesData) ? coursesData : []);
-    } catch (err) {
-      setError("Failed to load courses");
-      console.error("Error loading courses:", err);
-    } finally {
+const loadCourses = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+    
+    console.log('[CourseModal] Fetching courses for university:', university.id);
+    
+    // First, try to get courses from the university object itself
+    // Your API returns courses nested in the university object
+    if (university.courses && Array.isArray(university.courses) && university.courses.length > 0) {
+      console.log('[CourseModal] Using courses from university object:', university.courses);
+      
+      const validCourses = university.courses
+        .filter(course => course.id)
+        .map(course => ({
+          id: course.id,
+          university_id: course.university_id,
+          name: course.name || course.official_name,
+          subject_area: course.field_of_study || 'General',
+          degree_type: course.degree_level?.toLowerCase() || 'bachelors',
+          language: course.language || 'English',
+          duration_months: (course.duration_years || 3) * 12,
+          intake_season: course.intake_season || 'WINTER',
+          tuition_fee: course.tuition_fee_international || 0,
+          min_gpa: course.min_gpa || '2.5',
+          min_ielts: course.min_ielts || '6.5',
+          description: course.description || '',
+          course_code: course.course_code || '',
+        }));
+      
+      console.log('[CourseModal] Mapped courses from university object:', validCourses);
+      setCourses(validCourses);
       setLoading(false);
+      return;
     }
-  };
+    
+    // If no courses in university object, fetch from API
+    console.log('[CourseModal] Fetching courses from API...');
+    const coursesData = await universityAPI.getUniversityCourses(university.id);
+    
+    console.log('[CourseModal] Raw courses data from API:', coursesData);
+    
+    // Handle different response structures
+    let coursesArray = [];
+    if (Array.isArray(coursesData)) {
+      coursesArray = coursesData;
+    } else if (coursesData?.data && Array.isArray(coursesData.data)) {
+      coursesArray = coursesData.data;
+    } else if (coursesData?.courses && Array.isArray(coursesData.courses)) {
+      coursesArray = coursesData.courses;
+    }
+    
+    // Map backend course structure to frontend structure
+    const validCourses = coursesArray
+      .filter(course => course.id)
+      .map(course => ({
+        id: course.id,
+        university_id: course.university_id,
+        name: course.name || course.official_name,
+        subject_area: course.field_of_study || 'General',
+        degree_type: course.degree_level?.toLowerCase() || 'bachelors',
+        language: course.language || 'English',
+        duration_months: (course.duration_years || 3) * 12,
+        intake_season: course.intake_season || 'WINTER',
+        tuition_fee: course.tuition_fee_international || 0,
+        min_gpa: course.min_gpa || '2.5',
+        min_ielts: course.min_ielts || '6.5',
+        description: course.description || '',
+        course_code: course.course_code || '',
+      }));
+    
+    console.log('[CourseModal] Mapped courses from API:', validCourses);
+    setCourses(validCourses);
+  } catch (err) {
+    console.error("Error loading courses:", err);
+    
+    // Fallback: try to use courses from university object even on error
+    if (university.courses && Array.isArray(university.courses) && university.courses.length > 0) {
+      console.log('[CourseModal] Using fallback - courses from university object');
+      const validCourses = university.courses
+        .filter(course => course.id)
+        .map(course => ({
+          id: course.id,
+          university_id: course.university_id,
+          name: course.name || course.official_name,
+          subject_area: course.field_of_study || 'General',
+          degree_type: course.degree_level?.toLowerCase() || 'bachelors',
+          language: course.language || 'English',
+          duration_months: (course.duration_years || 3) * 12,
+          intake_season: course.intake_season || 'WINTER',
+          tuition_fee: course.tuition_fee_international || 0,
+          min_gpa: course.min_gpa || '2.5',
+          min_ielts: course.min_ielts || '6.5',
+          description: course.description || '',
+          course_code: course.course_code || '',
+        }));
+      
+      setCourses(validCourses);
+    } else {
+      setError("Failed to load courses");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const filteredCourses = useMemo(() => {
     return courses.filter((course) => {
@@ -141,15 +233,36 @@ const CourseModal = ({ university, isOpen, onClose }) => {
     return `${months} months`;
   };
 
-  const handleApplyNow = (course) => {
-    navigate("/applications", {
-      state: {
-        university: university,
-        course: course,
-      },
-    });
+ const handleApplyNow = (course) => {
+  console.log('=== COURSE SELECTED FOR APPLICATION ===');
+  console.log('Course:', course);
+  console.log('University:', university);
+  
+  if (!course || !course.id) {
+    alert('Error: Invalid course selected. Please try again.');
+    return;
+  }
+  
+  if (!university || !university.id) {
+    alert('Error: University information missing. Please try again.');
+    return;
+  }
+  
+  // Store both course and university BEFORE closing modal
+  console.log('Setting selectedCourse and selectedUniversity...');
+  setSelectedCourse(course);
+  setSelectedUniversity(university);
+  
+  // Open form modal FIRST (both modals can be open simultaneously briefly)
+  console.log('Opening form modal...');
+  setIsFormModalOpen(true);
+  
+  // Then close course modal with a small delay to ensure state propagation
+  setTimeout(() => {
+    console.log('Closing course modal...');
     onClose();
-  };
+  }, 50);
+};
 
   if (!isOpen) return null;
 
@@ -220,22 +333,22 @@ const CourseModal = ({ university, isOpen, onClose }) => {
                 onChange={(e) => setSelectedSubject(e.target.value)}
                 className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
                 <option value="all">All Subjects</option>
-                {uniqueSubjects.map((subject) => (
-                  <option key={subject} value={subject}>
-                    {subject}
-                  </option>
-                ))}
+                {uniqueSubjects.map((subject, index) => (
+  <option key={`subject-${index}-${subject}`} value={subject}>
+    {subject}
+  </option>
+))}
               </select>
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
                 <option value="all">All Languages</option>
-                {uniqueLanguages.map((language) => (
-                  <option key={language} value={language}>
-                    {language}
-                  </option>
-                ))}
+                {uniqueLanguages.map((language, index) => (
+  <option key={`language-${index}-${language}`} value={language}>
+    {language}
+  </option>
+))}
               </select>
             </div>
             <p className="text-sm text-gray-600">
@@ -257,10 +370,10 @@ const CourseModal = ({ university, isOpen, onClose }) => {
               </div>
             ) : filteredCourses.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {filteredCourses.map((course) => (
-                  <Card
-                    key={course.id}
-                    className="p-4 hover:shadow-md transition-shadow">
+               {filteredCourses.map((course, index) => (
+  <Card
+    key={course.id || `course-${index}`}
+    className="p-4 hover:shadow-md transition-shadow">
                     <div className="space-y-3">
                       <div className="flex justify-between items-start">
                         <h3 className="font-bold text-lg text-[#2C3539] line-clamp-2 flex-1">
@@ -361,7 +474,6 @@ const CourseModal = ({ university, isOpen, onClose }) => {
 };
 
 // Application Form Modal
-// Application Form Modal
 const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     fullName: "",
@@ -382,7 +494,6 @@ const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
 
   useEffect(() => {
     if (isOpen) {
-      // Reset form when opening
       setFormData({
         fullName: "",
         email: "",
@@ -411,7 +522,7 @@ const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
 
   const handleFileChange = (e, field) => {
     const file = e.target.files[0];
-    if (file && file.size > 5 * 1024 * 1024) { // 5MB limit
+    if (file && file.size > 5 * 1024 * 1024) {
       alert("File size too large. Max 5MB.");
       return;
     }
@@ -422,288 +533,286 @@ const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
   };
 
   const validateForm = () => {
-    const newErrors = {};
-    if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of birth is required";
-    if (!formData.nationality.trim()) newErrors.nationality = "Nationality is required";
-    if (!formData.tenthMarks.trim()) newErrors.tenthMarks = "10th marks are required";
-    if (!formData.twelfthMarks.trim()) newErrors.twelfthMarks = "12th marks are required";
-    if (!formData.graduationMarks.trim()) newErrors.graduationMarks = "Graduation marks are required";
-    if (!formData.passportNumber.trim()) newErrors.passportNumber = "Passport number is required";
-    if (!formData.apsCertificate) newErrors.apsCertificate = "APS certificate is required";
-    if (!formData.lomFile) newErrors.lomFile = "Letter of Motivation (LOM) upload is compulsory";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const newErrors = {};
+
+  // Only validate email format if user enters something
+  if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
+    newErrors.email = "Invalid email";
+  }
+
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    if (validateForm()) {
-      setLoading(true);
-      // Simulate API call for form submission
-      setTimeout(() => {
-        setLoading(false);
-        onSubmit(formData, university);
-      }, 1000);
-    }
-  };
+  e.preventDefault();
+  console.log("=== FORM SUBMIT ===");
+  console.log("University prop in modal:", university);
+  console.log("Form data:", formData);
+  
+  if (!university) {
+    console.error("No university in ApplicationFormModal!");
+    alert("Error: University information missing. Please try again.");
+    return;
+  }
+  
+  if (validateForm()) {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      console.log("Calling onSubmit with university:", university);
+      onSubmit(formData, university);
+    }, 1000);
+  }
+};
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-lg">
         {/* Modal Header */}
-        <div className="p-8 border-b border-gray-100 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] rounded-t-xl">
+        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 rounded-xl bg-white bg-opacity-20 flex items-center justify-center shadow-lg">
-                <Building2 className="w-8 h-8 text-white" />
-              </div>
-              <div className="text-white">
-                <h2 className="text-3xl font-bold mb-1">Application Form</h2>
-                <p className="text-white text-opacity-90 text-lg">Apply to {university?.name}</p>
+            <div className="flex items-center space-x-2">
+              <Building2 className="w-6 h-6" />
+              <div>
+                <h2 className="text-lg font-bold">Apply to {university?.name}</h2>
               </div>
             </div>
             <Button 
               variant="ghost" 
-              size="lg" 
+              size="sm" 
               onClick={onClose} 
-              className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2"
+              className="text-white hover:bg-white hover:bg-opacity-20"
             >
-              <X className="w-6 h-6" />
+              <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-8">
-          <div className="space-y-8">
-            {/* Personal Information */}
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <h3 className="text-xl font-bold text-[#2C3539] mb-6 flex items-center">
-                <div className="w-8 h-8 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-3 text-sm font-bold">1</div>
-                Personal Information
-              </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-sm font-semibold text-gray-700">Full Name *</Label>
-                  <Input 
-                    id="fullName" 
-                    name="fullName" 
-                    value={formData.fullName} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.fullName ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.fullName && <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-semibold text-gray-700">Email *</Label>
-                  <Input 
-                    id="email" 
-                    name="email" 
-                    type="email" 
-                    value={formData.email} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.email ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">Phone Number *</Label>
-                  <Input 
-                    id="phone" 
-                    name="phone" 
-                    value={formData.phone} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.phone ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dateOfBirth" className="text-sm font-semibold text-gray-700">Date of Birth *</Label>
-                  <Input 
-                    id="dateOfBirth" 
-                    name="dateOfBirth" 
-                    type="date" 
-                    value={formData.dateOfBirth} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.dateOfBirth ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nationality" className="text-sm font-semibold text-gray-700">Nationality *</Label>
-                  <Input 
-                    id="nationality" 
-                    name="nationality" 
-                    value={formData.nationality} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.nationality ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.nationality && <p className="text-red-500 text-sm mt-1">{errors.nationality}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="passportNumber" className="text-sm font-semibold text-gray-700">Passport Number *</Label>
-                  <Input 
-                    id="passportNumber" 
-                    name="passportNumber" 
-                    value={formData.passportNumber} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.passportNumber ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.passportNumber && <p className="text-red-500 text-sm mt-1">{errors.passportNumber}</p>}
-                </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Personal Information */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
+              <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">1</span>
+              Personal Information
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="fullName" className="text-xs font-semibold text-gray-700">Full Name</Label>
+                <Input 
+                  id="fullName" 
+                  name="fullName" 
+                  value={formData.fullName} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.fullName ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="email" className="text-xs font-semibold text-gray-700">Email</Label>
+                <Input 
+                  id="email" 
+                  name="email" 
+                  type="email" 
+                  value={formData.email} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.email ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="phone" className="text-xs font-semibold text-gray-700">Phone</Label>
+                <Input 
+                  id="phone" 
+                  name="phone" 
+                  value={formData.phone} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.phone ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="dateOfBirth" className="text-xs font-semibold text-gray-700">Date of Birth</Label>
+                <Input 
+                  id="dateOfBirth" 
+                  name="dateOfBirth" 
+                  type="date" 
+                  value={formData.dateOfBirth} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.dateOfBirth ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.dateOfBirth && <p className="text-red-500 text-xs">{errors.dateOfBirth}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nationality" className="text-xs font-semibold text-gray-700">Nationality</Label>
+                <Input 
+                  id="nationality" 
+                  name="nationality" 
+                  value={formData.nationality} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.nationality ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.nationality && <p className="text-red-500 text-xs">{errors.nationality}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="passportNumber" className="text-xs font-semibold text-gray-700">Passport Number</Label>
+                <Input 
+                  id="passportNumber" 
+                  name="passportNumber" 
+                  value={formData.passportNumber} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.passportNumber ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.passportNumber && <p className="text-red-500 text-xs">{errors.passportNumber}</p>}
               </div>
             </div>
+          </div>
 
-            {/* Academic Information */}
-            <div className="bg-blue-50 p-6 rounded-xl">
-              <h3 className="text-xl font-bold text-[#2C3539] mb-6 flex items-center">
-                <div className="w-8 h-8 rounded-full bg-[#C4DFF0] text-[#2C3539] flex items-center justify-center mr-3 text-sm font-bold">2</div>
-                Academic Information
-              </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="tenthMarks" className="text-sm font-semibold text-gray-700">10th Marks (% or GPA) *</Label>
-                  <Input 
-                    id="tenthMarks" 
-                    name="tenthMarks" 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.tenthMarks} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.tenthMarks ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.tenthMarks && <p className="text-red-500 text-sm mt-1">{errors.tenthMarks}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="twelfthMarks" className="text-sm font-semibold text-gray-700">12th Marks (% or GPA) *</Label>
-                  <Input 
-                    id="twelfthMarks" 
-                    name="twelfthMarks" 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.twelfthMarks} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.twelfthMarks ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.twelfthMarks && <p className="text-red-500 text-sm mt-1">{errors.twelfthMarks}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="graduationMarks" className="text-sm font-semibold text-gray-700">Graduation Marks (% or GPA) *</Label>
-                  <Input 
-                    id="graduationMarks" 
-                    name="graduationMarks" 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.graduationMarks} 
-                    onChange={handleInputChange} 
-                    className={cn("h-12 border-2 focus:border-[#E08D3C] transition-colors", errors.graduationMarks ? "border-red-500" : "border-gray-200")} 
-                  />
-                  {errors.graduationMarks && <p className="text-red-500 text-sm mt-1">{errors.graduationMarks}</p>}
-                </div>
+          {/* Academic Information */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
+              <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">2</span>
+              Academic Information
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="tenthMarks" className="text-xs font-semibold text-gray-700">10th Marks</Label>
+                <Input 
+                  id="tenthMarks" 
+                  name="tenthMarks" 
+                  type="number" 
+                  step="0.01" 
+                  value={formData.tenthMarks} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.tenthMarks ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.tenthMarks && <p className="text-red-500 text-xs">{errors.tenthMarks}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="twelfthMarks" className="text-xs font-semibold text-gray-700">12th Marks</Label>
+                <Input 
+                  id="twelfthMarks" 
+                  name="twelfthMarks" 
+                  type="number" 
+                  step="0.01" 
+                  value={formData.twelfthMarks} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.twelfthMarks ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.twelfthMarks && <p className="text-red-500 text-xs">{errors.twelfthMarks}</p>}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="graduationMarks" className="text-xs font-semibold text-gray-700">Graduation Marks</Label>
+                <Input 
+                  id="graduationMarks" 
+                  name="graduationMarks" 
+                  type="number" 
+                  step="0.01" 
+                  value={formData.graduationMarks} 
+                  onChange={handleInputChange} 
+                  className={cn("h-9 text-sm", errors.graduationMarks ? "border-red-500" : "border-gray-200")} 
+                />
+                {errors.graduationMarks && <p className="text-red-500 text-xs">{errors.graduationMarks}</p>}
               </div>
             </div>
+          </div>
 
-            {/* Documents */}
-            <div className="bg-orange-50 p-6 rounded-xl">
-              <h3 className="text-xl font-bold text-[#2C3539] mb-6 flex items-center">
-                <div className="w-8 h-8 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-3 text-sm font-bold">3</div>
-                Documents
-              </h3>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="apsCertificate" className="text-sm font-semibold text-gray-700">APS Certificate Upload *</Label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-[#E08D3C] transition-colors">
-                    <Upload className="w-8 h-8 text-gray-400 mx-auto mb-3" />
-                    <Input 
-                      id="apsCertificate" 
-                      type="file" 
-                      accept=".pdf,.doc,.docx" 
-                      onChange={(e) => handleFileChange(e, "apsCertificate")} 
-                      className={cn("cursor-pointer", errors.apsCertificate ? "border-red-500" : "")} 
-                    />
-                    <p className="text-sm text-gray-500 mt-2">PDF, DOC, or DOCX (Max 5MB)</p>
+          {/* Documents */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
+              <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">3</span>
+              Documents
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="apsCertificate" className="text-xs font-semibold text-gray-700">APS Certificate</Label>
+                <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center">
+                  <Input 
+                    id="apsCertificate" 
+                    type="file" 
+                    accept=".pdf,.doc,.docx" 
+                    onChange={(e) => handleFileChange(e, "apsCertificate")} 
+                    className={cn("text-sm", errors.apsCertificate ? "border-red-500" : "")} 
+                  />
+                  <p className="text-xs text-gray-500 mt-1">PDF/DOC (Max 5MB)</p>
+                </div>
+                {errors.apsCertificate && <p className="text-red-500 text-xs">{errors.apsCertificate}</p>}
+                {formData.apsCertificate && (
+                  <div className="flex items-center text-xs text-green-700">
+                    <Check className="w-3 h-3 text-green-600 mr-1" />
+                    {formData.apsCertificate.name}
                   </div>
-                  {errors.apsCertificate && <p className="text-red-500 text-sm mt-1">{errors.apsCertificate}</p>}
-                  {formData.apsCertificate && (
-                    <div className="flex items-center bg-green-50 p-3 rounded-lg mt-2">
-                      <Check className="w-4 h-4 text-green-600 mr-2" />
-                      <p className="text-sm text-green-700 font-medium">{formData.apsCertificate.name}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lomFile" className="text-sm font-semibold text-gray-700">Letter of Motivation (LOM) Upload *</Label>
-                  <div className="border-2 border-dashed border-red-300 rounded-xl p-6 text-center hover:border-red-400 transition-colors bg-red-50">
-                    <FileText className="w-8 h-8 text-red-400 mx-auto mb-3" />
-                    <Input 
-                      id="lomFile" 
-                      type="file" 
-                      accept=".pdf,.doc,.docx" 
-                      onChange={(e) => handleFileChange(e, "lomFile")} 
-                      className={cn("cursor-pointer", errors.lomFile ? "border-red-500" : "")} 
-                    />
-                    <p className="text-sm text-red-600 mt-2 font-semibold">Compulsory Document</p>
-                  </div>
-                  {errors.lomFile && <p className="text-red-500 text-sm mt-1">{errors.lomFile}</p>}
-                  {formData.lomFile && (
-                    <div className="flex items-center bg-green-50 p-3 rounded-lg mt-2">
-                      <Check className="w-4 h-4 text-green-600 mr-2" />
-                      <p className="text-sm text-green-700 font-medium">{formData.lomFile.name}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Information */}
-            <div className="bg-gray-50 p-6 rounded-xl">
-              <h3 className="text-xl font-bold text-[#2C3539] mb-4">Additional Information (Optional)</h3>
-              <Textarea 
-                id="additionalInfo" 
-                name="additionalInfo" 
-                value={formData.additionalInfo} 
-                onChange={handleInputChange} 
-                rows={4} 
-                className="w-full border-2 border-gray-200 focus:border-[#E08D3C] transition-colors rounded-xl" 
-                placeholder="Tell us anything else that might be relevant to your application..."
-              />
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onClose} 
-                className="px-8 py-3 text-gray-600 border-gray-300 hover:bg-gray-50"
-                disabled={loading}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                className="px-8 py-3 bg-primary hover:bg-[#1e2529] text-white font-semibold h-12 min-w-[160px]" 
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-5 h-5 mr-2" />
-                    Submit Application
-                  </>
                 )}
-              </Button>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="lomFile" className="text-xs font-semibold text-gray-700">Letter of Motivation</Label>
+                <div className="border border-dashed border-red-300 rounded-lg p-3 text-center bg-red-50">
+                  <Input 
+                    id="lomFile" 
+                    type="file" 
+                    accept=".pdf,.doc,.docx" 
+                    onChange={(e) => handleFileChange(e, "lomFile")} 
+                    className={cn("text-sm", errors.lomFile ? "border-red-500" : "")} 
+                  />
+                  <p className="text-xs text-red-600 mt-1">Required</p>
+                </div>
+                {errors.lomFile && <p className="text-red-500 text-xs">{errors.lomFile}</p>}
+                {formData.lomFile && (
+                  <div className="flex items-center text-xs text-green-700">
+                    <Check className="w-3 h-3 text-green-600 mr-1" />
+                    {formData.lomFile.name}
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Additional Information */}
+          <div className="space-y-1">
+            <Label htmlFor="additionalInfo" className="text-xs font-semibold text-gray-700">Additional Information</Label>
+            <Textarea 
+              id="additionalInfo" 
+              name="additionalInfo" 
+              value={formData.additionalInfo} 
+              onChange={handleInputChange} 
+              rows={3} 
+              className="text-sm border-gray-200" 
+              placeholder="Optional information..."
+            />
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onClose} 
+              className="px-4 py-2 text-xs" 
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit" 
+              className="px-4 py-2 bg-primary text-white text-xs" 
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-1" />
+                  Submit
+                </>
+              )}
+            </Button>
           </div>
         </form>
       </div>
@@ -711,7 +820,6 @@ const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
   );
 };
 
-// Payment Modal
 // Payment Modal
 const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -727,17 +835,14 @@ const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
     let formattedValue = value.replace(/\s/g, '');
     
     if (name === 'cardNumber') {
-      // Format card number with spaces
       formattedValue = value.replace(/\s/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
-      if (formattedValue.length > 19) return; // Max 16 digits + 3 spaces
+      if (formattedValue.length > 19) return;
     } else if (name === 'expiry') {
-      // Format expiry with slash
       formattedValue = value.replace(/\D/g, '').replace(/(\d{2})(?=\d)/, '$1/');
-      if (formattedValue.length > 5) return; // MM/YY format
+      if (formattedValue.length > 5) return;
     } else if (name === 'cvv') {
-      // Only allow numbers for CVV
       formattedValue = value.replace(/\D/g, '');
-      if (formattedValue.length > 3) return; // Max 3 digits
+      if (formattedValue.length > 3) return;
     }
     
     setCardDetails((prev) => ({ ...prev, [name]: formattedValue }));
@@ -749,163 +854,151 @@ const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
   const validatePayment = () => {
     const newErrors = {};
     const cardNumberDigits = cardDetails.cardNumber.replace(/\s/g, '');
-    if (cardNumberDigits.length < 13) newErrors.cardNumber = "Invalid card number";
-    if (!/^\d{2}\/\d{2}$/.test(cardDetails.expiry)) newErrors.expiry = "Invalid expiry (MM/YY)";
+    if (cardNumberDigits.length < 13) newErrors.cardNumber = "Invalid card";
+    if (!/^\d{2}\/\d{2}$/.test(cardDetails.expiry)) newErrors.expiry = "Invalid MM/YY";
     if (cardDetails.cvv.length !== 3) newErrors.cvv = "Invalid CVV";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handlePay = (e) => {
-    e.preventDefault();
-    if (validatePayment()) {
-      setLoading(true);
-      // Simulate payment processing
-      setTimeout(() => {
-        setLoading(false);
-        onSuccess(university);
-      }, 2000);
-    }
-  };
+  e.preventDefault();
+  if (validatePayment()) {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      console.log("Payment successful, calling onSuccess with university:", university);
+      onSuccess(university); // Pass university explicitly
+    }, 2000);
+  }
+};
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
+      <div className="bg-white rounded-lg max-w-md w-full shadow-lg">
         {/* Modal Header */}
-        <div className="p-8 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
+        <div className="p-4 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 rounded-xl bg-white bg-opacity-20 flex items-center justify-center shadow-lg">
-                <CreditCard className="w-8 h-8" />
-              </div>
+            <div className="flex items-center space-x-2">
+              <CreditCard className="w-5 h-5" />
               <div>
-                <h2 className="text-2xl font-bold mb-1">Secure Payment</h2>
-                <p className="text-white text-opacity-90">Application Fee: €50</p>
-                <p className="text-sm text-white text-opacity-75 mt-1">{university?.name}</p>
+                <h2 className="text-lg font-bold">Payment</h2>
+                <p className="text-xs">Fee: €50 - {university?.name}</p>
               </div>
             </div>
             <Button 
               variant="ghost" 
-              size="lg" 
+              size="sm" 
               onClick={onClose} 
-              className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2"
+              className="text-white hover:bg-white hover:bg-opacity-20"
             >
-              <X className="w-6 h-6" />
+              <X className="w-4 h-4" />
             </Button>
           </div>
         </div>
 
         {/* Payment Form */}
-        <form onSubmit={handlePay} className="p-8">
-          <div className="space-y-6">
-            {/* Card Number */}
-            <div className="space-y-2">
-              <Label htmlFor="cardNumber" className="text-sm font-semibold text-gray-700 flex items-center">
-                <CreditCard className="w-4 h-4 mr-2" />
-                Card Number
+        <form onSubmit={handlePay} className="p-4 space-y-3">
+          {/* Card Number */}
+          <div className="space-y-1">
+            <Label htmlFor="cardNumber" className="text-xs font-semibold text-gray-700 flex items-center">
+              <CreditCard className="w-3 h-3 mr-1" />
+              Card Number
+            </Label>
+            <Input
+              id="cardNumber"
+              name="cardNumber"
+              placeholder="1234 5678 9012 3456"
+              value={cardDetails.cardNumber}
+              onChange={handleInputChange}
+              className={cn(
+                "h-9 text-sm",
+                errors.cardNumber ? "border-red-500" : "border-gray-200"
+              )}
+            />
+            {errors.cardNumber && <p className="text-red-500 text-xs">{errors.cardNumber}</p>}
+          </div>
+
+          {/* Expiry and CVV */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="expiry" className="text-xs font-semibold text-gray-700 flex items-center">
+                <Calendar className="w-3 h-3 mr-1" />
+                Expiry
               </Label>
               <Input
-                id="cardNumber"
-                name="cardNumber"
-                placeholder="1234 5678 9012 3456"
-                value={cardDetails.cardNumber}
+                id="expiry"
+                name="expiry"
+                placeholder="MM/YY"
+                value={cardDetails.expiry}
                 onChange={handleInputChange}
                 className={cn(
-                  "h-12 text-lg tracking-wider border-2 focus:border-[#E08D3C] transition-colors",
-                  errors.cardNumber ? "border-red-500" : "border-gray-200"
+                  "h-9 text-sm",
+                  errors.expiry ? "border-red-500" : "border-gray-200"
                 )}
               />
-              {errors.cardNumber && <p className="text-red-500 text-sm">{errors.cardNumber}</p>}
+              {errors.expiry && <p className="text-red-500 text-xs">{errors.expiry}</p>}
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="cvv" className="text-xs font-semibold text-gray-700 flex items-center">
+                <Lock className="w-3 h-3 mr-1" />
+                CVV
+              </Label>
+              <Input
+                id="cvv"
+                name="cvv"
+                type="password"
+                placeholder="123"
+                value={cardDetails.cvv}
+                onChange={handleInputChange}
+                className={cn(
+                  "h-9 text-sm",
+                  errors.cvv ? "border-red-500" : "border-gray-200"
+                )}
+              />
+              {errors.cvv && <p className="text-red-500 text-xs">{errors.cvv}</p>}
+            </div>
+          </div>
 
-            {/* Expiry and CVV */}
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="expiry" className="text-sm font-semibold text-gray-700 flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Expiry Date
-                </Label>
-                <Input
-                  id="expiry"
-                  name="expiry"
-                  placeholder="MM/YY"
-                  value={cardDetails.expiry}
-                  onChange={handleInputChange}
-                  className={cn(
-                    "h-12 text-lg border-2 focus:border-[#E08D3C] transition-colors",
-                    errors.expiry ? "border-red-500" : "border-gray-200"
-                  )}
-                />
-                {errors.expiry && <p className="text-red-500 text-sm">{errors.expiry}</p>}
+          {/* Payment Summary */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Application Fee</span>
+                <span className="font-medium">€50.00</span>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="cvv" className="text-sm font-semibold text-gray-700 flex items-center">
-                  <Lock className="w-4 h-4 mr-2" />
-                  CVV
-                </Label>
-                <Input
-                  id="cvv"
-                  name="cvv"
-                  type="password"
-                  placeholder="123"
-                  value={cardDetails.cvv}
-                  onChange={handleInputChange}
-                  className={cn(
-                    "h-12 text-lg border-2 focus:border-[#E08D3C] transition-colors",
-                    errors.cvv ? "border-red-500" : "border-gray-200"
-                  )}
-                />
-                {errors.cvv && <p className="text-red-500 text-sm">{errors.cvv}</p>}
+              <div className="flex justify-between font-semibold">
+                <span>Total</span>
+                <span className="text-[#E08D3C]">€50.00</span>
               </div>
             </div>
+          </div>
 
-            {/* Payment Summary */}
-            <div className="bg-gray-50 p-6 rounded-xl border-2 border-gray-100">
-              <h3 className="font-semibold text-gray-800 mb-4">Payment Summary</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Application Fee</span>
-                  <span className="font-medium">€50.00</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Processing Fee</span>
-                  <span className="font-medium">€0.00</span>
-                </div>
-                <div className="border-t border-gray-200 pt-3 mt-3">
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-[#E08D3C]">€50.00</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* Submit Button */}
+          <Button 
+            type="submit" 
+            className="w-full h-9 bg-[#2C3539] hover:bg-[#1e2529] text-white text-sm" 
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Lock className="w-4 h-4 mr-1" />
+                Pay €50
+              </>
+            )}
+          </Button>
 
-            {/* Submit Button */}
-            <Button 
-              type="submit" 
-              className="w-full h-14 bg-[#2C3539] hover:bg-[#1e2529] text-white font-bold text-lg rounded-xl transition-all duration-200 transform hover:scale-[1.02]" 
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin mr-3" />
-                  Processing Payment...
-                </>
-              ) : (
-                <>
-                  <Lock className="w-5 h-5 mr-3" />
-                  Pay €50 Now
-                </>
-              )}
-            </Button>
-
-            {/* Security Notice */}
-            <div className="flex items-center justify-center space-x-2 text-xs text-gray-500 bg-green-50 p-3 rounded-lg border border-green-200">
-              <Lock className="w-4 h-4 text-green-600" />
-              <span>Secure payment powered by Stripe • Your data is encrypted and safe</span>
-            </div>
+          {/* Security Notice */}
+          <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 bg-green-50 p-2 rounded border border-green-200">
+            <Lock className="w-3 h-3 text-green-600" />
+            <span>Secure payment</span>
           </div>
         </form>
       </div>
@@ -917,10 +1010,10 @@ export default function Universities() {
   const { selectedCountry } = useOutletContext<ContextType>();
   const [activeFilter, setActiveFilter] = useState("All");
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // API data states
   const [universities, setUniversities] = useState([]);
-  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -932,21 +1025,31 @@ export default function Universities() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCity, setSelectedCity] = useState("all");
   const [selectedState, setSelectedState] = useState("all");
-  const [selectedCourse, setSelectedCourse] = useState("all");
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState("all");
   const [selectedLanguage, setSelectedLanguage] = useState("all");
   const [selectedDegreeType, setSelectedDegreeType] = useState("all");
   const [selectedIntakeSeason, setSelectedIntakeSeason] = useState("all");
   const [tuitionRange, setTuitionRange] = useState("all");
   const [gpaRange, setGpaRange] = useState("all");
+  // New filter states for dynamic API filters
+const [universityType, setUniversityType] = useState("all");
+const [institutionType, setInstitutionType] = useState("all");
+const [universityRanking, setUniversityRanking] = useState("all");
+const [scholarshipsOnly, setScholarshipsOnly] = useState(false);
 
   // Filter options from API
   const [cities, setCities] = useState([]);
   const [states, setStates] = useState([]);
   const [subjectAreas, setSubjectAreas] = useState([]);
   const [degreeTypes, setDegreeTypes] = useState([]);
+  // Store filter options from API
+const [universityRankings, setUniversityRankings] = useState([]);
+const [tuitionOptions, setTuitionOptions] = useState([]);
+const [hasScholarships, setHasScholarships] = useState(false);
 
   // Modal states
   const [selectedUniversity, setSelectedUniversity] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -954,212 +1057,214 @@ export default function Universities() {
   // Course statistics for universities
   const [universityStats, setUniversityStats] = useState({});
 
+  // Add this right after your state declarations to debug
+useEffect(() => {
+  console.log('=== STATE UPDATE ===');
+  console.log('selectedUniversity:', selectedUniversity?.name || 'null');
+  console.log('selectedCourse:', selectedCourse?.name || 'null');
+  console.log('isModalOpen:', isModalOpen);
+  console.log('isFormModalOpen:', isFormModalOpen);
+  console.log('isPaymentModalOpen:', isPaymentModalOpen);
+}, [selectedUniversity, selectedCourse, isModalOpen, isFormModalOpen, isPaymentModalOpen]);
+
   // Load initial data
+ // Load initial data once on mount
   useEffect(() => {
     loadFilterOptions();
     loadData();
-  }, []);
+  }, []); // Only runs once on mount
 
-  // Load data when filters change
+  // Load data when filters change (debounced to avoid excessive calls)
   useEffect(() => {
-    loadData();
+    // Skip the initial render (already handled by first useEffect)
+    const timer = setTimeout(() => {
+      loadData();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
   }, [
     selectedCountry,
     searchQuery,
     selectedCity,
     selectedState,
-    selectedCourse,
+    selectedCourseFilter,
     selectedLanguage,
     selectedDegreeType,
     selectedIntakeSeason,
     tuitionRange,
     gpaRange,
+    universityType,        // ADD THIS
+  institutionType,       // ADD THIS
+  universityRanking,     // ADD THIS
+  scholarshipsOnly,  
   ]);
 
-  // Load both universities and courses
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Load universities only
+ const loadData = async () => {
+  try {
+    setLoading(true);
+    setError(null);
 
-      // Build query parameters for universities
-      const universityParams = {};
+    let universitiesData = [];
 
-      // Map selectedCountry to country parameter
-      if (selectedCountry === "DE") {
-        universityParams.country = "germany";
-      } else if (selectedCountry === "UK") {
-        universityParams.country = "uk";
+    // Build parameters with new filter mappings
+    const params = {};
+    
+    if (selectedCity !== "all") params.country = selectedCity;
+    if (selectedState !== "all") params.state = selectedState;
+    if (selectedCourseFilter !== "all") params.type = selectedCourseFilter;
+    if (selectedLanguage !== "all") params.language = selectedLanguage;
+    if (universityType !== "all") params.universityType = universityType;
+    if (institutionType !== "all") params.institutionType = institutionType;
+    if (universityRanking !== "all") params.ranking = universityRanking;
+    if (scholarshipsOnly) params.scholarshipsAvailable = true;
+    if (selectedDegreeType !== "all") params.degreeLevel = selectedDegreeType;
+    if (selectedIntakeSeason !== "all") params.intakeSeason = selectedIntakeSeason;
+
+    console.log('[Universities] Loading with params:', params);
+
+    // Use search or regular endpoint
+    if (searchQuery.trim()) {
+      params.query = searchQuery.trim();
+      try {
+        universitiesData = await universityAPI.searchUniversities(params);
+      } catch (err) {
+        console.error("Search failed, falling back:", err);
+        universitiesData = await universityAPI.getUniversities(params);
       }
-
-      // Apply university filters
-      if (selectedCity !== "all") universityParams.city = selectedCity;
-      if (selectedState !== "all") universityParams.state = selectedState;
-      if (selectedCourse !== "all")
-        universityParams.subject_area = selectedCourse;
-      if (selectedLanguage !== "all")
-        universityParams.language = selectedLanguage;
-
-      // Search query for universities
-      if (searchQuery.trim()) {
-        universityParams.search = searchQuery.trim();
-      }
-
-      // Load universities first
-      let universitiesData = await universityAPI.getUniversities(
-        universityParams
-      );
-      const universitiesArray = Array.isArray(universitiesData)
-        ? universitiesData
-        : [];
-
-      // Load all courses for the country to calculate statistics and handle course search
-      const courseParams = {};
-      if (selectedCountry === "DE") {
-        // For Germany, we'll get courses from German universities
-        courseParams.country = "Germany";
-      } else if (selectedCountry === "UK") {
-        // For UK, we'll get courses from UK universities
-        courseParams.country = "United Kingdom";
-      }
-
-      // Add course-specific filters if they're set
-      if (selectedDegreeType !== "all")
-        courseParams.degree_type = selectedDegreeType;
-      if (selectedIntakeSeason !== "all")
-        courseParams.intake_season = selectedIntakeSeason;
-      if (selectedLanguage !== "all") courseParams.language = selectedLanguage;
-      if (selectedCourse !== "all") courseParams.subject_area = selectedCourse;
-
-      // If there's a search query, also search in courses
-      if (searchQuery.trim()) {
-        courseParams.search = searchQuery.trim();
-      }
-
-      let coursesData = await courseAPI.getCourses(courseParams);
-      const coursesArray = Array.isArray(coursesData) ? coursesData : [];
-
-      // If we have course search results, include their universities
-      let finalUniversities = [...universitiesArray];
-
-      if (searchQuery.trim() && coursesArray.length > 0) {
-        // Get unique university IDs from course results
-        const courseUniversityIds = [
-          ...new Set(coursesArray.map((course) => course.university)),
-        ];
-
-        // Get universities that have matching courses but weren't in the university search results
-        for (const universityId of courseUniversityIds) {
-          if (!finalUniversities.some((uni) => uni.id === universityId)) {
-            try {
-              const additionalUni = await universityAPI.getUniversityById(
-                universityId
-              );
-              if (additionalUni) {
-                finalUniversities.push(additionalUni);
-              }
-            } catch (err) {
-              console.warn(`Failed to load university ${universityId}:`, err);
-            }
-          }
-        }
-      }
-
-      // Apply course-based filters to universities if course filters are active
-      if (
-        selectedDegreeType !== "all" ||
-        selectedIntakeSeason !== "all" ||
-        tuitionRange !== "all" ||
-        gpaRange !== "all"
-      ) {
-        const universityIdsWithMatchingCourses = [
-          ...new Set(coursesArray.map((course) => course.university)),
-        ];
-        finalUniversities = finalUniversities.filter((uni) =>
-          universityIdsWithMatchingCourses.includes(uni.id)
-        );
-      }
-
-      setUniversities(finalUniversities);
-      setCourses(coursesArray);
-
-      // Calculate university statistics
-      calculateUniversityStats(finalUniversities, coursesArray);
-    } catch (err) {
-      setError("Failed to load data. Please try again.");
-      console.error("Error loading data:", err);
-      setUniversities([]);
-      setCourses([]);
-    } finally {
-      setLoading(false);
+    } else {
+      universitiesData = await universityAPI.getUniversities(params);
     }
-  };
+
+    // Extract array from response
+    let universitiesArray = [];
+    if (Array.isArray(universitiesData)) {
+      universitiesArray = universitiesData;
+    } else if (universitiesData?.data) {
+      universitiesArray = Array.isArray(universitiesData.data) 
+        ? universitiesData.data 
+        : [universitiesData.data];
+    }
+
+    console.log('[Universities] Loaded:', universitiesArray.length, 'universities');
+
+    // Calculate stats from nested courses
+    calculateUniversityStats(universitiesArray);
+    
+    setUniversities(universitiesArray);
+  } catch (err) {
+    setError("Failed to load data. Please try again.");
+    console.error("Error loading data:", err);
+    setUniversities([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Calculate course statistics for each university
-  const calculateUniversityStats = (universitiesData, coursesData) => {
-    const stats = {};
+  const calculateUniversityStats = (universitiesData) => {
+  const stats = {};
 
-    universitiesData.forEach((university) => {
-      const universityCourses = coursesData.filter(
-        (course) => course.university === university.id
-      );
+  universitiesData.forEach((university) => {
+    // Use courses from the university object directly
+    const universityCourses = university.courses || [];
 
-      const tuitionFees = universityCourses
-        .map((course) => parseFloat(course.tuition_fee) || 0)
-        .filter((fee) => fee > 0);
+    const tuitionFees = universityCourses
+      .map((course) => parseFloat(course.tuition_fee_international || course.tuition_fee) || 0)
+      .filter((fee) => fee > 0);
 
-      stats[university.id] = {
-        totalCourses: universityCourses.length,
-        degreeTypes: [
-          ...new Set(universityCourses.map((course) => course.degree_type)),
-        ].filter(Boolean),
-        subjects: [
-          ...new Set(universityCourses.map((course) => course.subject_area)),
-        ]
-          .filter(Boolean)
-          .slice(0, 3),
-        languages: [
-          ...new Set(universityCourses.map((course) => course.language)),
-        ].filter(Boolean),
-        tuitionRange:
-          tuitionFees.length > 0
-            ? {
-                min: Math.min(...tuitionFees),
-                max: Math.max(...tuitionFees),
-              }
-            : null,
-        intakeSeasons: [
-          ...new Set(universityCourses.map((course) => course.intake_season)),
-        ].filter(Boolean),
-      };
-    });
+    stats[university.id] = {
+      totalCourses: universityCourses.length,
+      degreeTypes: [
+        ...new Set(universityCourses.map((course) => 
+          (course.degree_level || course.degree_type || '').toLowerCase()
+        ))
+      ].filter(Boolean),
+      subjects: [
+        ...new Set(universityCourses.map((course) => 
+          course.field_of_study || course.subject_area
+        ))
+      ].filter(Boolean).slice(0, 3),
+      languages: [
+        ...new Set(universityCourses.map((course) => course.language))
+      ].filter(Boolean),
+      tuitionRange: tuitionFees.length > 0
+        ? {
+            min: Math.min(...tuitionFees),
+            max: Math.max(...tuitionFees),
+          }
+        : null,
+      intakeSeasons: [
+        ...new Set(universityCourses.map((course) => course.intake_season))
+      ].filter(Boolean),
+    };
+  });
 
-    setUniversityStats(stats);
-  };
+  setUniversityStats(stats);
+};
 
   // Load filter options from API
   const loadFilterOptions = async () => {
-    try {
-      const [citiesData, statesData, subjectsData, degreeTypesData] =
-        await Promise.all([
-          universityAPI.getCities(),
-          universityAPI.getStates(),
-          courseAPI.getSubjectAreas(),
-          courseAPI.getDegreeTypes(),
-        ]);
-
-      setCities(Array.isArray(citiesData) ? citiesData : []);
-      setStates(Array.isArray(statesData) ? statesData : []);
-      setSubjectAreas(Array.isArray(subjectsData) ? subjectsData : []);
-      setDegreeTypes(Array.isArray(degreeTypesData) ? degreeTypesData : []);
-    } catch (err) {
-      console.error("Error loading filter options:", err);
-      setCities([]);
-      setStates([]);
-      setSubjectAreas([]);
-      setDegreeTypes([]);
-    }
-  };
+  try {
+    console.log('[Universities] Loading filter options from new endpoint...');
+    
+    // Call the new dynamic filters endpoint
+    const filtersResponse = await universityAPI.getDynamicFilters();
+    
+    console.log('[Universities] Raw filters response:', filtersResponse);
+    
+    // Extract filters array from response
+    const filtersArray = filtersResponse?.data?.filters || filtersResponse?.filters || [];
+    
+    console.log('[Universities] Extracted filters array:', filtersArray);
+    
+    // Initialize filter objects
+    const filterMap = {
+      country: [],
+      type: [],
+      institutionType: [],
+      ranking: [],
+      tuition: [],
+      scholarshipsAvailable: [],
+    };
+    
+    // Group filters by filterParam
+    filtersArray.forEach((filter) => {
+      const { filterParam, filterId } = filter;
+      
+      if (filterMap.hasOwnProperty(filterParam)) {
+        // Avoid duplicates
+        if (!filterMap[filterParam].includes(filterId)) {
+          filterMap[filterParam].push(filterId);
+        }
+      }
+    });
+    
+    console.log('[Universities] Processed filter map:', filterMap);
+    
+    // Set state variables based on filter map
+    setCities(filterMap.country || []);
+    setStates([]);
+    setSubjectAreas(filterMap.type || []);
+    setDegreeTypes(filterMap.institutionType || []);
+    setUniversityRankings(filterMap.ranking || []);
+    setTuitionOptions(filterMap.tuition || []);
+    setHasScholarships(filtersArray.some(f => f.filterParam === 'scholarshipsAvailable' && f.filterId === true));
+    
+    console.log('[Universities] ✅ Filter options loaded successfully');
+  } catch (err) {
+    console.error('[Universities] Error loading filter options:', err);
+    
+    // Fallback to empty arrays
+    setCities([]);
+    setStates([]);
+    setSubjectAreas([]);
+    setDegreeTypes([]);
+    setUniversityRankings([]);
+    setTuitionOptions([]);
+    setHasScholarships(false);
+  }
+};
 
   // Add to favorites
   const addToFavorites = (universityId) => {
@@ -1184,29 +1289,168 @@ export default function Universities() {
 
   // Handle form submit - opens payment
   const handleFormSubmit = (formData, university) => {
-    console.log("Form submitted:", formData); // For debugging
-    setIsFormModalOpen(false);
+  console.log("Form submitted:", formData);
+  console.log("University from form:", university);
+  
+  // CRITICAL: Ensure university is preserved
+  if (!university && selectedUniversity) {
+    console.log("Using selectedUniversity from state");
+    university = selectedUniversity;
+  }
+  
+  if (!university) {
+    console.error("No university available in handleFormSubmit");
+    alert("Error: University information missing. Please try again.");
+    return;
+  }
+  
+  // Ensure university state is set
+  setSelectedUniversity(university);
+  
+  // Store form data for later use if needed
+  setIsFormModalOpen(false);
+  
+  // Open payment modal with a small delay
+  setTimeout(() => {
     setIsPaymentModalOpen(true);
-  };
+  }, 100);
+};
 
-  // Handle payment success - redirect to applications
-  const handlePaymentSuccess = (university) => {
-    console.log("Payment successful for:", university.name); // For debugging
+  // Handle payment success - create application and redirect
+  // Handle payment success - create application and redirect
+  // Add this logging to your handlePaymentSuccess function in Universities.tsx
+// Replace the applicationData section with this:
+
+const handlePaymentSuccess = async (university) => {
+  console.log("=== PAYMENT SUCCESS ===");
+  console.log("University param:", university);
+  console.log("Selected university state:", selectedUniversity);
+  console.log("Selected course state:", selectedCourse);
+  
+  // Use university from parameter, fall back to state
+  const targetUniversity = university || selectedUniversity;
+  
+  if (!targetUniversity || !targetUniversity.id) {
+    console.error("❌ No valid university available");
+    alert("Error: University information missing. Please try again.");
+    setIsPaymentModalOpen(false);
+    return;
+  }
+
+  console.log("Payment successful for:", targetUniversity.name);
+  
+  try {
+    setLoading(true);
+
+    if (!user || !user.id) {
+      console.error('No user ID available');
+      alert('Unable to create application: User not authenticated');
+      return;
+    }
+
+    if (!selectedCourse?.id) {
+      alert('Error: Please select a course before applying.');
+      setIsPaymentModalOpen(false);
+      setIsModalOpen(true);
+      return;
+    }
+
+    // Extract intake term and year from course
+    let targetSemester = "WINTER";
+    let targetYear = new Date().getFullYear() + 1;
+    
+    if (selectedCourse.intake_season) {
+      const intakeStr = selectedCourse.intake_season.toUpperCase();
+      
+      if (intakeStr.includes('_')) {
+        const parts = intakeStr.split('_');
+        targetSemester = parts[0];
+        targetYear = parseInt(parts[1]) || targetYear;
+      } else {
+        targetSemester = intakeStr;
+        
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
+        
+        if (targetSemester === "WINTER" && currentMonth >= 10) {
+          targetYear = currentYear + 1;
+        } else if (targetSemester === "SPRING" && currentMonth >= 1) {
+          targetYear = currentYear;
+        } else if (targetSemester === "SUMMER" && currentMonth >= 4) {
+          targetYear = currentYear;
+        } else if (targetSemester === "FALL" || targetSemester === "AUTUMN") {
+          targetSemester = "FALL";
+          targetYear = currentMonth >= 7 ? currentYear : currentYear + 1;
+        }
+      }
+    }
+
+    // Create application data - USE targetUniversity instead of university
+    const applicationData = {
+      studentId: user.id,
+      targetUniversityId: targetUniversity.id,
+      targetCourseId: selectedCourse.id,
+      targetSemester: targetSemester,
+      targetYear: targetYear,
+    };
+
+    console.log('=== CREATING APPLICATION ===');
+    console.log('Application data:', JSON.stringify(applicationData, null, 2));
+    
+    // Call the backend API
+    const response = await createApplication(applicationData);
+    console.log('✅ Application API response:', response);
+
+    const applicationId = response?.data?.id || response?.id;
+    
+    if (!applicationId) {
+      throw new Error('Application created but no ID returned');
+    }
+
+    console.log('✅ Application successfully created with ID:', applicationId);
+
+    // Close modals
     setIsPaymentModalOpen(false);
     setSelectedUniversity(null);
-    navigate("/applications", {
-      state: {
-        university: university,
-        applicationData: { /* You can pass formData if needed */ },
-      },
-    });
-  };
+    setSelectedCourse(null);
+    setIsFormModalOpen(false);
+    
+    // Success message
+    const refNumber = response?.data?.referenceNumber || response?.referenceNumber || 'N/A';
+    alert(`🎉 Application submitted successfully!\n\nReference: ${refNumber}\n\nRedirecting to Applications page...`);
+    
+    // Wait before redirect
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Navigate to applications
+    navigate("/applications");
+    
+  } catch (error) {
+    console.error('❌ Error creating application:', error);
+    
+    let errorMessage = 'Failed to create application. ';
+    
+    if (error.message?.includes('UUID')) {
+      errorMessage += 'Invalid university or course information.';
+    } else if (error.message?.includes('401') || error.message?.includes('authenticated')) {
+      errorMessage += 'Authentication failed. Please log in again.';
+    } else if (error.message?.includes('Missing required')) {
+      errorMessage += 'Please select a course before applying.';
+    } else {
+      errorMessage += error.message || 'Unknown error occurred.';
+    }
+    
+    alert(errorMessage);
+    setIsPaymentModalOpen(false);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Get filtered universities based on current view
   const filteredUniversities = useMemo(() => {
     let filtered = showFavorites ? favorites : universities;
 
-    // Apply active filter
     switch (activeFilter) {
       case "Top 50":
         filtered = filtered.filter((uni) => uni.ranking && uni.ranking <= 50);
@@ -1287,15 +1531,23 @@ export default function Universities() {
     };
 
     const handleApplyNow = () => {
-      console.log("Apply Now clicked for:", university.name); // For debugging
-      setSelectedUniversity(university);
-      setIsFormModalOpen(true);
-    };
+  console.log("=== APPLY NOW CLICKED ===");
+  console.log("University:", university);
+  
+  if (!university || !university.id) {
+    alert('Error: Invalid university data. Please try again.');
+    return;
+  }
+  
+  // Open course modal first, not form modal
+  setSelectedUniversity(university);
+  setSelectedCourse(null); // Reset course selection
+  setIsModalOpen(true); // Open COURSE modal, not form modal
+};
 
     return (
       <Card className="group hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-[#E08D3C] bg-white h-96 w-full flex flex-col">
         <div className="p-4 flex flex-col h-full">
-          {/* Header with logo and basic info */}
           <div className="flex justify-between items-start mb-3">
             <div className="flex items-center space-x-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-lg overflow-hidden shadow-sm flex-shrink-0">
@@ -1352,7 +1604,6 @@ export default function Universities() {
             </Button>
           </div>
 
-          {/* Rankings and stats */}
           <div className="flex gap-2 mb-3">
             {university.ranking && (
               <span className="bg-[#C4DFF0] text-[#2C3539] text-xs px-2 py-1 rounded-full font-semibold">
@@ -1371,7 +1622,6 @@ export default function Universities() {
             )}
           </div>
 
-          {/* Course Statistics */}
           <div className="space-y-2 mb-3 flex-1">
             <div className="flex justify-between text-xs text-[#2C3539]">
               <span>Total Courses:</span>
@@ -1447,7 +1697,6 @@ export default function Universities() {
             )}
           </div>
 
-          {/* Footer with courses count and buttons */}
           <div className="pt-3 border-t border-gray-100 mt-auto">
             <div className="text-center mb-3">
               <span className="font-bold text-[#E08D3C] text-sm">
@@ -1492,7 +1741,6 @@ export default function Universities() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}>
-      {/* Header */}
       <motion.div
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         initial={{ y: -20, opacity: 0 }}
@@ -1540,161 +1788,148 @@ export default function Universities() {
         </Button>
       </motion.div>
 
-      {/* Search and Filters - Only show when not in favorites view */}
       {!showFavorites && (
-        <motion.div
-          className="space-y-4"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.1 }}>
-          {/* Primary Filters - Enhanced with course filters */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
-            <div className="relative xs:col-span-2 sm:col-span-3 lg:col-span-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search universities and courses..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10 rounded-lg border-gray-300 focus:border-[#E08D3C] focus:ring-[#E08D3C] text-sm"
-              />
-            </div>
+  <motion.div
+    className="space-y-4"
+    initial={{ y: 20, opacity: 0 }}
+    animate={{ y: 0, opacity: 1 }}
+    transition={{ duration: 0.5, delay: 0.1 }}>
+    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+      <div className="relative xs:col-span-2 sm:col-span-3 lg:col-span-2">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Input
+          placeholder="Search universities and courses..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 h-10 rounded-lg border-gray-300 focus:border-[#E08D3C] focus:ring-[#E08D3C] text-sm"
+        />
+      </div>
 
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All Cities</option>
-              {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
+      <select
+        value={selectedCity}
+        onChange={(e) => setSelectedCity(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Countries</option>
+        {cities.map((city) => (
+          <option key={city} value={city}>
+            {city}
+          </option>
+        ))}
+      </select>
 
-            <select
-              value={selectedState}
-              onChange={(e) => setSelectedState(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All States</option>
-              {states.map((state) => (
-                <option key={state} value={state}>
-                  {state}
-                </option>
-              ))}
-            </select>
+      <select
+        value={universityType}
+        onChange={(e) => setUniversityType(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Types</option>
+        {subjectAreas.map((type) => (
+          <option key={type} value={type}>
+            {type}
+          </option>
+        ))}
+      </select>
 
-            <select
-              value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All Subjects</option>
-              {subjectAreas.map((subject) => (
-                <option key={subject} value={subject}>
-                  {subject}
-                </option>
-              ))}
-            </select>
+      <select
+        value={institutionType}
+        onChange={(e) => setInstitutionType(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Institutions</option>
+        {degreeTypes.map((type) => (
+          <option key={type} value={type}>
+            {type}
+          </option>
+        ))}
+      </select>
 
-            <select
-              value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All Languages</option>
-              <option value="english">English</option>
-              <option value="german">German</option>
-              <option value="both">Both</option>
-            </select>
-          </div>
+      <select
+        value={universityRanking}
+        onChange={(e) => setUniversityRanking(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Rankings</option>
+        {universityRankings.map((ranking) => (
+          <option key={ranking} value={ranking}>
+            {ranking}
+          </option>
+        ))}
+      </select>
+    </div>
 
-          {/* Secondary Filters Row - Enhanced with course-specific filters */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
-            <select
-              value={selectedDegreeType}
-              onChange={(e) => setSelectedDegreeType(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All Degrees</option>
-              <option value="bachelors">Bachelor's</option>
-              <option value="masters">Master's</option>
-              <option value="phd">PhD</option>
-            </select>
+    <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+      <select
+        value={selectedLanguage}
+        onChange={(e) => setSelectedLanguage(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Languages</option>
+      </select>
 
-            <select
-              value={selectedIntakeSeason}
-              onChange={(e) => setSelectedIntakeSeason(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All Intakes</option>
-              <option value="winter">Winter</option>
-              <option value="spring">Spring</option>
-              <option value="summer">Summer</option>
-              <option value="fall">Fall</option>
-            </select>
+      <select
+        value={selectedDegreeType}
+        onChange={(e) => setSelectedDegreeType(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Degrees</option>
+      </select>
 
-            <select
-              value={tuitionRange}
-              onChange={(e) => setTuitionRange(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All Tuition</option>
-              <option value="0-10000">Under €10,000</option>
-              <option value="10000-20000">€10,000 - €20,000</option>
-              <option value="20000-30000">€20,000 - €30,000</option>
-              <option value="30000+">€30,000+</option>
-            </select>
+      <select
+        value={selectedIntakeSeason}
+        onChange={(e) => setSelectedIntakeSeason(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Intakes</option>
+      </select>
 
-            <select
-              value={gpaRange}
-              onChange={(e) => setGpaRange(e.target.value)}
-              className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option value="all">All GPA</option>
-              <option value="0-2.5">2.5 and below</option>
-              <option value="2.5-3.0">2.5 - 3.0</option>
-              <option value="3.0-3.5">3.0 - 3.5</option>
-              <option value="3.5+">3.5+</option>
-            </select>
+      <select
+        value={tuitionRange}
+        onChange={(e) => setTuitionRange(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All Tuition</option>
+        {tuitionOptions.map((tuition) => (
+          <option key={tuition} value={tuition}>
+            {tuition}
+          </option>
+        ))}
+      </select>
 
-            <select className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
-              <option>All Types</option>
-              <option>Public</option>
-              <option>Private</option>
-            </select>
+      <select
+        value={gpaRange}
+        onChange={(e) => setGpaRange(e.target.value)}
+        className="h-10 rounded-lg border-gray-300 text-sm px-3 bg-white">
+        <option value="all">All GPA</option>
+      </select>
 
-            <div className="flex flex-col items-start justify-between">
-              <span className="text-sm text-[#2C3539] font-medium whitespace-nowrap">
-                {loading
-                  ? "Loading..."
-                  : `${filteredUniversities.length} universities • ${courses.length} courses`}
-              </span>
-              <select className="h-6 w-full rounded border-gray-300 text-xs px-2 bg-white mt-1">
-                <option>Ranking (Best First)</option>
-                <option>Name (A to Z)</option>
-                <option>Match Score</option>
-                <option>Tuition (Low to High)</option>
-                <option>Most Courses</option>
-              </select>
-            </div>
-          </div>
+      <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg border border-gray-300">
+        <input
+          type="checkbox"
+          id="scholarships"
+          checked={scholarshipsOnly}
+          onChange={(e) => setScholarshipsOnly(e.target.checked)}
+          className="w-4 h-4 rounded cursor-pointer"
+          disabled={!hasScholarships}
+        />
+        <label htmlFor="scholarships" className="text-xs font-medium text-gray-700 cursor-pointer">
+          Scholarships
+        </label>
+      </div>
+    </div>
 
-          {/* Filter Chips - Standardized button sizes */}
-          <div className="flex flex-wrap gap-2">
-            {filters.map((filter) => (
-              <motion.button
-                key={filter}
-                onClick={() => setActiveFilter(filter)}
-                className={cn(
-                  "h-10 px-6 rounded-full text-sm font-medium transition-all min-w-[100px] flex items-center justify-center",
-                  activeFilter === filter
-                    ? "bg-[#E08D3C] text-white shadow"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                )}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}>
-                {filter}
-              </motion.button>
-            ))}
-          </div>
-        </motion.div>
-      )}
+    <div className="flex flex-wrap gap-2">
+      {filters.map((filter) => (
+        <motion.button
+          key={filter}
+          onClick={() => setActiveFilter(filter)}
+          className={cn(
+            "h-10 px-6 rounded-full text-sm font-medium transition-all min-w-[100px] flex items-center justify-center",
+            activeFilter === filter
+              ? "bg-[#E08D3C] text-white shadow"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          )}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}>
+          {filter}
+        </motion.button>
+      ))}
+    </div>
+  </motion.div>
+)}
 
-      {/* Universities Grid - Enhanced cards with course data */}
       <motion.div
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
         variants={container}
@@ -1766,39 +2001,52 @@ export default function Universities() {
         )}
       </motion.div>
 
-      {/* Course Modal */}
-      <CourseModal
-        university={selectedUniversity}
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedUniversity(null);
-        }}
-      />
+      {/* Course Selection Modal - Opens First */}
+{/* Course Selection Modal - Opens First */}
+<CourseModal
+  university={selectedUniversity}
+  isOpen={isModalOpen}
+  onClose={() => {
+    console.log("Closing course modal, NOT clearing selectedUniversity");
+    setIsModalOpen(false);
+    // DON'T clear selectedUniversity here - it's needed for the form modal!
+  }}
+  setSelectedCourse={setSelectedCourse}
+  setSelectedUniversity={setSelectedUniversity}
+  setIsPaymentModalOpen={setIsPaymentModalOpen}
+  setIsFormModalOpen={setIsFormModalOpen}
+/>
 
-      {/* Application Form Modal */}
-      <ApplicationFormModal
-        university={selectedUniversity}
-        isOpen={isFormModalOpen}
-        onClose={() => {
-          setIsFormModalOpen(false);
-          setSelectedUniversity(null);
-        }}
-        onSubmit={handleFormSubmit}
-      />
+{/* Application Form Modal - Opens Second */}
+{/* Application Form Modal - Opens Second */}
+<ApplicationFormModal
+  university={selectedUniversity}
+  isOpen={isFormModalOpen}
+  onClose={() => {
+    setIsFormModalOpen(false);
+    // Don't clear university/course here - we need them for payment
+  }}
+  onSubmit={handleFormSubmit}
+/>
 
-      {/* Payment Modal */}
-      <PaymentModal
-        university={selectedUniversity}
-        isOpen={isPaymentModalOpen}
-        onClose={() => {
-          setIsPaymentModalOpen(false);
-          setSelectedUniversity(null);
-        }}
-        onSuccess={handlePaymentSuccess}
-      />
+{/* Payment Modal - Opens Third */}
+{/* Payment Modal - Opens Third */}
+<PaymentModal
+  university={selectedUniversity}
+  isOpen={isPaymentModalOpen}
+  onClose={() => {
+    console.log("Payment modal closing");
+    setIsPaymentModalOpen(false);
+    // Don't clear university/course on close - user might reopen
+  }}
+  onSuccess={(uni) => {
+    console.log("Payment success callback, uni param:", uni);
+    // Pass the university explicitly
+    handlePaymentSuccess(uni || selectedUniversity);
+  }}
+/>
 
-      {/* Recommendations Footer - Only show when not in favorites view */}
+
       {!showFavorites && (
         <motion.div
           className="text-center py-8"

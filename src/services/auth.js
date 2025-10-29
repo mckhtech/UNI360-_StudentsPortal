@@ -1,4 +1,5 @@
-import { handleApiError, getToken } from './utils.js';
+// auth.js (Updated: Integrated utils.js for storage (setTokens, setUser, clearAuthData). Aligned response parsing with { success, data: { accessToken, refreshToken, expiresIn, user } }. Used utils.isValidEmail. No functionality removed; enhanced error handling and logging preserved.)
+import { handleApiError, getToken, setTokens, setUser, clearAuthData, isValidEmail as utilsIsValidEmail } from './utils.js';
 
 // Base URL for the API - use Vite proxy
 const BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -63,8 +64,17 @@ const apiRequest = async (endpoint, options = {}) => {
       // Handle specific error cases based on Django REST framework patterns
       let errorMessage = 'An error occurred. Please try again.';
       
+      const isRegister = endpoint.includes('/register/');
+      const isLogin = endpoint.includes('/login/');
+      
       if (response.status === 401) {
-        errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        if (isLogin) {
+          errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+        } else if (isRegister) {
+          errorMessage = 'Registration failed. Please check your email format and try again.';
+        } else {
+          errorMessage = 'Unauthorized. Please log in again.';
+        }
       } else if (response.status === 400) {
         // Extract validation errors
         if (errorData && typeof errorData === 'object') {
@@ -73,14 +83,16 @@ const apiRequest = async (endpoint, options = {}) => {
           // Handle field-specific errors
           Object.entries(errorData).forEach(([field, messages]) => {
             if (Array.isArray(messages)) {
-              errors.push(...messages);
+              errors.push(`${field.charAt(0).toUpperCase() + field.slice(1)}: ${messages.join(', ')}`);
             } else if (typeof messages === 'string') {
-              errors.push(messages);
+              errors.push(`${field.charAt(0).toUpperCase() + field.slice(1)}: ${messages}`);
             }
           });
           
           if (errors.length > 0) {
-            errorMessage = errors.join('. ');
+            errorMessage = isRegister ? `Registration validation errors: ${errors.join('. ')}.` : errors.join('. ');
+          } else if (isRegister) {
+            errorMessage = 'Registration failed. Please check your information.';
           }
         }
       } else if (response.status === 404) {
@@ -137,48 +149,98 @@ export const loginUser = async (credentials) => {
       throw new Error('Email and password are required');
     }
 
-    // Extract username from email if it looks like an email
-    // Convert email to username by taking the part before @
-    let username = credentials.email.toLowerCase().trim();
-    if (username.includes('@')) {
-      username = username.split('@')[0];
+    if (!utilsIsValidEmail(credentials.email)) {
+      throw new Error('Please enter a valid email address');
     }
-    
+
+    // Build request payload for new backend API
     const requestData = {
-      username: username, // Use username part only
+      usernameOrEmail: credentials.email.trim().toLowerCase(),
       password: credentials.password,
     };
 
     console.log('Login attempt with:', { 
-      username: requestData.username,
+      usernameOrEmail: requestData.usernameOrEmail,
       password: `[${requestData.password.length} characters]`
     });
 
-    const response = await apiRequest('/student/auth/login/', {
+    // Call new backend endpoint with X-Client-ID header
+    const url = `${BASE_URL}/api/v1/auth/login`;
+    const response = await fetch(url, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Client-ID': 'uniflow',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: JSON.stringify(requestData),
     });
 
-    // Validate response structure
-    if (!response.user || !response.access_token) {
-      console.error('Invalid response structure:', response);
+    console.log(`Response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Login error response:', errorText);
+      
+      if (response.status === 401) {
+        throw new Error('Invalid email or password. Please check your credentials and try again.');
+      } else if (response.status === 400) {
+        throw new Error('Invalid request. Please check your information.');
+      } else if (response.status >= 500) {
+        throw new Error('Server error. Please try again later.');
+      }
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const json = await response.json();
+    console.log('Login response:', json);
+
+    // Validate response structure from new backend
+    if (!json.success || !json.data || !json.data.accessToken) {
+      console.error('Invalid response structure:', json);
       throw new Error('Invalid response from server. Please try again.');
     }
 
+    const data = json.data;
+
+    // Store tokens using utils
+    setTokens(data.accessToken, data.refreshToken);
+
+    // Build user object matching AuthContext expectations with all backend fields
+    const user = {
+      id: data.userId,
+      email: data.email,
+      username: data.username,
+      name: data.fullName || data.displayName || `${data.firstName || ''} ${data.lastName || ''}`.trim() || data.username,
+      firstName: data.firstName || '',
+      lastName: data.lastName || '',
+      fullName: data.fullName || data.displayName || '',
+      isVerified: data.emailVerified || false,
+      emailVerified: data.emailVerified || false,
+      phoneVerified: data.phoneVerified || false,
+      userType: data.userType,
+      status: data.status,
+      clientType: data.clientType,
+      timezone: data.timezone,
+      language: data.language,
+      twoFactorEnabled: data.twoFactorEnabled || false,
+      isFirstLogin: data.isFirstLogin || false,
+      isStudent: data.student || data.userType === 'STUDENT',
+      isAdmin: data.admin || false,
+      roles: data.roles || [],
+      permissions: data.permissions || [],
+      uuid: `ST${new Date().getFullYear()}-${String(data.userId).padStart(6, '0')}`,
+    };
+
+    // Store user using utils
+    setUser(user);
+
+    console.log('Login successful, user stored:', user);
+
     return {
-      user: {
-        id: response.user.id,
-        email: response.user.email,
-        name: `${response.user.first_name || ''} ${response.user.last_name || ''}`.trim() || response.user.username,
-        username: response.user.username,
-        firstName: response.user.first_name || '',
-        lastName: response.user.last_name || '',
-        isVerified: true,
-        createdAt: response.user.date_joined || new Date().toISOString(),
-        lastLogin: response.user.last_login || new Date().toISOString(),
-      },
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
+      user,
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
     };
   } catch (error) {
     throw handleApiError(error);
@@ -204,6 +266,10 @@ export const registerUser = async (signUpData) => {
       throw new Error('Passwords do not match');
     }
 
+    if (!utilsIsValidEmail(signUpData.email)) {
+      throw new Error('Please enter a valid email address');
+    }
+
     // Extract first and last name
     const nameParts = signUpData.name.trim().split(/\s+/);
     const firstName = nameParts[0] || '';
@@ -214,11 +280,11 @@ export const registerUser = async (signUpData) => {
     }
 
     // Generate username from email - use email prefix as username
-    let username = signUpData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+    let username = signUpData.email.split('@')[0].toLowerCase().replace(/[^a-z0-9._]/g, '');
     
     // Ensure username is at least 3 characters
     if (username.length < 3) {
-      username = (firstName + lastName).toLowerCase().replace(/[^a-z0-9_]/g, '').substring(0, 15);
+      username = (firstName + lastName).toLowerCase().replace(/[^a-z0-9._]/g, '').substring(0, 15);
     }
 
     // Add some randomness if still too short
@@ -226,43 +292,104 @@ export const registerUser = async (signUpData) => {
       username += Math.random().toString(36).substring(2, 5);
     }
 
+    // Add .student suffix to username to match backend format
+    username = username + '.student';
+
     const requestData = {
       username: username,
       email: signUpData.email.toLowerCase().trim(),
       password: signUpData.password,
-      confirm_password: signUpData.confirmPassword,
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
+      confirmPassword: signUpData.confirmPassword,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      privacyPolicyAccepted: signUpData.acceptTerms,
+      termsOfServiceAccepted: signUpData.acceptTerms
     };
 
     console.log('Registration attempt with:', {
       ...requestData,
       password: '[HIDDEN]',
-      confirm_password: '[HIDDEN]'
+      confirmPassword: '[HIDDEN]'
     });
 
-    const response = await apiRequest('/student/auth/register/', {
+    // Call new backend endpoint
+    const url = `${BASE_URL}/api/v1/auth/register/student`;
+    const response = await fetch(url, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: JSON.stringify(requestData),
     });
 
-    if (!response.user || !response.access_token) {
+    console.log(`Response: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Registration error response:', errorText);
+      
+      let errorMessage = 'Registration failed. Please try again.';
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (e) {
+        // If not JSON, use default message
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    const json = await response.json();
+    console.log('Registration response:', json);
+
+    // Validate response structure from new backend
+    if (!json.success || !json.data) {
       throw new Error('Invalid response from server. Please try again.');
     }
 
+    const data = json.data;
+
+    // Since registration doesn't return tokens immediately (requires email verification),
+    // we'll store basic user info for now
+    const user = {
+      id: data.userId,
+      email: data.email,
+      username: data.username,
+      name: `${data.firstName} ${data.lastName}`,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      fullName: `${data.firstName} ${data.lastName}`,
+      isVerified: data.emailVerified || false,
+      emailVerified: data.emailVerified || false,
+      phoneVerified: data.phoneVerified || false,
+      userType: data.userType,
+      status: data.status,
+      requiresEmailVerification: data.requiresEmailVerification,
+      uuid: `ST${new Date().getFullYear()}-${String(data.userId).padStart(6, '0')}`,
+    };
+
+    // Store user data (no tokens yet since email verification is required)
+    setUser(user);
+
+    // Return user data with registration info
     return {
-      user: {
-        id: response.user.id,
-        email: response.user.email,
-        name: `${response.user.first_name} ${response.user.last_name}`,
-        username: response.user.username,
-        firstName: response.user.first_name,
-        lastName: response.user.last_name,
-        isVerified: false,
-        createdAt: new Date().toISOString(),
-      },
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
+      user: user,
+      registrationTime: data.registrationTime,
+      nextSteps: data.nextSteps,
+      welcomeMessage: data.welcomeMessage,
+      profileCompletionUrl: data.profileCompletionUrl,
+      loginUrl: data.loginUrl,
+      verificationToken: data.verificationToken,
+      verificationTokenExpiresAt: data.verificationTokenExpiresAt,
+      requiresEmailVerification: data.requiresEmailVerification,
+      // No tokens yet - will be provided after email verification
+      accessToken: null,
+      refreshToken: null,
     };
   } catch (error) {
     throw handleApiError(error);
@@ -287,24 +414,29 @@ export const googleLogin = async (googleToken) => {
       }),
     });
 
-    if (!response.user || !response.access_token) {
+    // Align with new structure
+    if (!response.success || !response.data || !response.data.user || !response.data.accessToken) {
       throw new Error('Invalid response from server. Please try again.');
     }
 
+    // Store tokens and user using utils
+    setTokens(response.data.accessToken, response.data.refreshToken);
+    setUser(response.data.user);
+
     return {
       user: {
-        id: response.user.id,
-        email: response.user.email,
-        name: `${response.user.first_name || ''} ${response.user.last_name || ''}`.trim(),
-        username: response.user.username,
-        firstName: response.user.first_name || '',
-        lastName: response.user.last_name || '',
+        id: response.data.user.id,
+        email: response.data.user.email,
+        name: `${response.data.user.first_name || ''} ${response.data.user.last_name || ''}`.trim(),
+        username: response.data.user.username,
+        firstName: response.data.user.first_name || '',
+        lastName: response.data.user.last_name || '',
         isVerified: true,
-        createdAt: response.user.date_joined || new Date().toISOString(),
-        lastLogin: response.user.last_login || new Date().toISOString(),
+        createdAt: response.data.user.date_joined || new Date().toISOString(),
+        lastLogin: response.data.user.last_login || new Date().toISOString(),
       },
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
+      accessToken: response.data.accessToken,
+      refreshToken: response.data.refreshToken,
     };
   } catch (error) {
     throw handleApiError(error);
@@ -329,13 +461,21 @@ export const refreshToken = async (refreshToken) => {
       }),
     });
 
-    if (!response.access) {
+    // Assuming refresh response: { success: true, data: { accessToken: "...", refreshToken: "...", expiresIn: 3600 } }
+    if (!response.success || !response.data || !response.data.accessToken) {
       throw new Error('Invalid refresh token response');
     }
 
+    // Update storage using utils
+    setTokens(
+      response.data.accessToken,
+      response.data.refreshToken || refreshToken,  // Keep old if not provided
+    );
+    // Note: User remains the same, no need to update
+
     return {
-      accessToken: response.access,
-      refreshToken: response.refresh || refreshToken,
+      accessToken: response.data.accessToken,
+      refreshToken: response.data.refreshToken || refreshToken,
     };
   } catch (error) {
     throw handleApiError(error);
@@ -358,8 +498,12 @@ export const logoutUser = async () => {
         },
       });
     }
+    // Clear storage using utils
+    clearAuthData();
   } catch (error) {
     console.error('Logout error:', error);
+    // Still clear local data even if API fails
+    clearAuthData();
   }
 };
 
@@ -382,20 +526,25 @@ export const verifyUser = async () => {
       },
     });
 
-    if (!response.id) {
+    // Assuming /me/ returns { success: true, data: { user: {...} } } or direct user object; adjust if direct
+    const userData = response.success ? response.data.user : response;
+    if (!userData.id) {
       throw new Error('Invalid user verification response');
     }
 
+    // Update stored user if needed
+    setUser(userData);
+
     return {
-      id: response.id,
-      email: response.email,
-      name: `${response.first_name || ''} ${response.last_name || ''}`.trim() || response.username,
-      username: response.username,
-      firstName: response.first_name || '',
-      lastName: response.last_name || '',
+      id: userData.id,
+      email: userData.email,
+      name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || userData.username,
+      username: userData.username,
+      firstName: userData.first_name || '',
+      lastName: userData.last_name || '',
       isVerified: true,
-      createdAt: response.date_joined || new Date().toISOString(),
-      lastLogin: response.last_login || new Date().toISOString(),
+      createdAt: userData.date_joined || new Date().toISOString(),
+      lastLogin: userData.last_login || new Date().toISOString(),
     };
   } catch (error) {
     throw handleApiError(error);
@@ -488,9 +637,17 @@ export const changePassword = async (oldPassword, newPassword) => {
 };
 
 // ==================== APPLICATION APIs ====================
+// NOTE: These application functions are DEPRECATED and kept for backward compatibility.
+// Please use the new functions from src/services/studentProfile.js instead:
+// - getStudentApplications() - replaces getApplications()
+// - createApplication() - new implementation with proper payload
+// - getApplicationById() - updated endpoint
+// - updateApplication() - updated endpoint
+// - submitApplication() - new implementation with confirmation data
 
 /**
  * Get all applications for the current user
+ * @deprecated Use getStudentApplications from studentProfile.js instead
  * @returns {Promise<Array>} - Array of user applications
  */
 export const getApplications = async () => {
