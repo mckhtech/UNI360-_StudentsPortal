@@ -16,12 +16,27 @@ import UniLogo from "/assets/Uni360-logo.png";
 
 type Country = "DE" | "UK";
 
+interface NotificationMetadata {
+  taskName?: string;
+  eventType?: string;
+  stageName?: string;
+  completedBy?: number;
+  applicationId?: string;
+}
+
 interface Notification {
-  id: string | number;
+  id: string;
+  userId: number;
+  senderId: number;
+  type: string;
   title: string;
   message: string;
-  is_read: boolean;
-  created_at: string;
+  contentType: string;
+  status: "READ" | "UNREAD";
+  actionUrl?: string;
+  metadata?: NotificationMetadata;
+  createdAt: string;
+  readAt?: string;
 }
 
 export function AppLayout() {
@@ -36,64 +51,148 @@ export function AppLayout() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
-  const [notificationsError, setNotificationsError] = useState<string | null>(
-    null
-  );
+  const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Fetch notifications on component mount
+  // Fetch notifications on component mount and periodically
   useEffect(() => {
     fetchNotifications();
+    fetchUnreadCount();
+
+    // Refresh notifications every 30 seconds
+    const notificationInterval = setInterval(() => {
+      fetchNotifications();
+      fetchUnreadCount();
+    }, 30000);
+
+    return () => clearInterval(notificationInterval);
   }, []);
 
   const fetchNotifications = async () => {
     try {
       setLoadingNotifications(true);
       setNotificationsError(null);
-      const notificationsData = await getNotifications();
-      // Ensure we always set an array
-      setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+      
+      const response = await getNotifications();
+      console.log("Notifications response:", response);
+      
+      // Handle the API response structure: { success, data: { notifications: [...] } }
+      let notificationsData: Notification[] = [];
+      
+      if (response?.data?.notifications) {
+        notificationsData = response.data.notifications;
+      } else if (response?.notifications) {
+        notificationsData = response.notifications;
+      } else if (Array.isArray(response)) {
+        notificationsData = response;
+      }
+      
+      setNotifications(notificationsData);
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
       setNotificationsError(error?.message || "Failed to load notifications");
-      // Keep notifications as empty array on error
       setNotifications([]);
     } finally {
       setLoadingNotifications(false);
     }
   };
 
-  // Safely get unread count - ensure notifications is always an array
-  const unreadCount = Array.isArray(notifications) ? notifications.filter((n) => !n.is_read).length : 0;
-
-  const handleNotificationRead = async (id: string | number) => {
+  const fetchUnreadCount = async () => {
     try {
-      await markNotificationAsRead(id);
+      const response = await getUnreadNotificationsCount();
+      console.log("Unread count response:", response);
+      
+      // Handle the API response structure: { success, data: { unreadCount: number } }
+      let count = 0;
+      
+      if (response?.data?.unreadCount !== undefined) {
+        count = response.data.unreadCount;
+      } else if (response?.unreadCount !== undefined) {
+        count = response.unreadCount;
+      } else if (typeof response === 'number') {
+        count = response;
+      }
+      
+      setUnreadCount(count);
+    } catch (error: any) {
+      console.error("Error fetching unread count:", error);
+      // Fallback: count unread notifications from the notifications array
+      const unread = notifications.filter((n) => n.status === "UNREAD").length;
+      setUnreadCount(unread);
+    }
+  };
+
+  const handleNotificationRead = async (id: string) => {
+    try {
+      // Optimistically update UI
       setNotifications((prev) =>
         prev.map((notification) =>
           notification.id === id
-            ? { ...notification, is_read: true }
+            ? { ...notification, status: "READ" as const, readAt: new Date().toISOString() }
             : notification
         )
       );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      // Make API call
+      await markNotificationAsRead(id);
+      
+      // Navigate to action URL if available
+      const notification = notifications.find((n) => n.id === id);
+      if (notification?.actionUrl) {
+        setShowNotifications(false);
+        
+        // Check if the route exists before navigating
+        const validRoutes = ['/dashboard', '/applications', '/profilebuilder', '/universities', '/courses'];
+        const routePath = notification.actionUrl.split('?')[0]; // Remove query params
+        
+        // Check if it's a valid route or starts with a valid route
+        const isValidRoute = validRoutes.some(route => routePath === route || routePath.startsWith(route + '/'));
+        
+        if (isValidRoute) {
+          // For application details, navigate to applications list instead
+          if (routePath.startsWith('/applications/')) {
+            console.log('Navigating to applications list instead of specific application');
+            navigate('/applications');
+          } else {
+            navigate(notification.actionUrl);
+          }
+        } else {
+          console.log('Invalid route in notification actionUrl:', notification.actionUrl);
+          // Just mark as read without navigation
+        }
+      }
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      // Don't show error to user for this action, just log it
+      // Revert optimistic update on error
+      fetchNotifications();
+      fetchUnreadCount();
     }
   };
 
   const handleMarkAllRead = async () => {
     try {
-      await markAllNotificationsAsRead();
+      // Optimistically update UI
       setNotifications((prev) =>
-        prev.map((notification) => ({ ...notification, is_read: true }))
+        prev.map((notification) => ({
+          ...notification,
+          status: "READ" as const,
+          readAt: notification.readAt || new Date().toISOString(),
+        }))
       );
+      setUnreadCount(0);
+
+      // Make API call
+      await markAllNotificationsAsRead();
       setShowNotifications(false);
     } catch (error) {
       console.error("Error marking all notifications as read:", error);
-      // Don't show error to user for this action, just log it
+      // Revert optimistic update on error
+      fetchNotifications();
+      fetchUnreadCount();
     }
   };
 
@@ -113,18 +212,15 @@ export function AppLayout() {
     }
   };
 
-  // Handle logo click - always navigate to dashboard
   const handleLogoClick = () => {
     navigate("/dashboard");
   };
 
-  // Close dropdowns when clicking outside
   const handleBackdropClick = () => {
     setShowNotifications(false);
     setShowProfileMenu(false);
   };
 
-  // Get user display name
   const getUserName = () => {
     if (user?.firstName && user?.lastName) {
       return `${user.firstName} ${user.lastName}`;
@@ -136,7 +232,6 @@ export function AppLayout() {
     return "User";
   };
 
-  // Get user initials
   const getUserInitials = () => {
     const name = getUserName();
     const nameParts = name.split(" ");
@@ -146,12 +241,42 @@ export function AppLayout() {
     return name.charAt(0).toUpperCase();
   };
 
-  // Format notification date
   const formatNotificationDate = (dateString: string) => {
     try {
-      return new Date(dateString).toLocaleDateString();
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined 
+      });
     } catch (error) {
       return "Invalid Date";
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "TASK_COMPLETION":
+        return "✅";
+      case "DOCUMENT_REQUEST":
+        return "📄";
+      case "APPLICATION_UPDATE":
+        return "🔔";
+      case "DEADLINE_REMINDER":
+        return "⏰";
+      default:
+        return "📢";
     }
   };
 
@@ -168,8 +293,11 @@ export function AppLayout() {
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="w-full h-16 flex items-center justify-between px-2">
-          {/* Logo - Now clickable and always navigates to dashboard */}
-          <div className="flex items-center">
+          {/* Logo - Clickable */}
+          <button 
+            onClick={handleLogoClick}
+            className="flex items-center hover:opacity-80 transition-opacity"
+          >
             <div className="w-12 h-12 sm:w-12 sm:h-12 md:w-16 md:h-16 rounded-lg flex items-end justify-center pb-1 mt-1 sm:mt-2">
               <img
                 src={UniLogo}
@@ -181,7 +309,7 @@ export function AppLayout() {
               <span className="hidden sm:inline">UNI360°</span>
               <span className="sm:hidden">UNI360°</span>
             </span>
-          </div>
+          </button>
 
           {/* Right Actions */}
           <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
@@ -213,35 +341,38 @@ export function AppLayout() {
 
               {/* Notifications Dropdown */}
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
-                  <div className="p-3 sm:p-4 border-b border-border">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-background border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="p-3 sm:p-4 border-b border-border bg-muted/30">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-foreground text-sm sm:text-base">
                         Notifications
+                        {unreadCount > 0 && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            ({unreadCount} new)
+                          </span>
+                        )}
                       </h3>
                       {unreadCount > 0 && !notificationsError && (
                         <button
                           onClick={handleMarkAllRead}
                           className="text-xs sm:text-sm text-primary hover:text-primary/80 font-medium transition-colors">
-                          Mark all as read
+                          Mark all read
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-[28rem] overflow-y-auto">
                     {loadingNotifications ? (
-                      <div className="p-4 sm:p-6 text-center text-muted-foreground">
-                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50 animate-pulse" />
+                      <div className="p-6 text-center text-muted-foreground">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50 animate-pulse" />
                         <p className="text-sm">Loading notifications...</p>
                       </div>
                     ) : notificationsError ? (
-                      <div className="p-4 sm:p-6 text-center text-muted-foreground">
-                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">Notifications unavailable</p>
-                        <p className="text-xs mt-1 opacity-75">
-                          Feature coming soon
-                        </p>
+                      <div className="p-6 text-center text-muted-foreground">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm font-medium">Unable to load notifications</p>
+                        <p className="text-xs mt-1 opacity-75">{notificationsError}</p>
                         <button
                           onClick={fetchNotifications}
                           className="mt-3 text-xs text-primary hover:text-primary/80 underline">
@@ -249,60 +380,68 @@ export function AppLayout() {
                         </button>
                       </div>
                     ) : notifications.length === 0 ? (
-                      <div className="p-4 sm:p-6 text-center text-muted-foreground">
-                        <Bell className="w-6 h-6 sm:w-8 sm:h-8 mx-auto mb-2 opacity-50" />
+                      <div className="p-6 text-center text-muted-foreground">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">No notifications yet</p>
+                        <p className="text-xs mt-1 opacity-75">
+                          You'll see updates about your applications here
+                        </p>
                       </div>
                     ) : (
-                      notifications.slice(0, 5).map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={cn(
-                            "p-3 sm:p-4 border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors cursor-pointer",
-                            !notification.is_read &&
-                              "bg-primary/5 border-l-4 border-l-primary"
-                          )}
-                          onClick={() =>
-                            handleNotificationRead(notification.id)
-                          }>
-                          <div className="flex items-start gap-2 sm:gap-3">
-                            <div
-                              className={cn(
-                                "w-2 h-2 rounded-full mt-2 flex-shrink-0",
-                                notification.is_read
-                                  ? "bg-muted-foreground/30"
-                                  : "bg-primary"
-                              )}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-foreground mb-1">
-                                {notification.title}
-                              </h4>
-                              <p className="text-sm text-muted-foreground line-clamp-2">
-                                {notification.message}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                {formatNotificationDate(
-                                  notification.created_at
-                                )}
-                              </p>
+                      <div>
+                        {notifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={cn(
+                              "p-3 sm:p-4 border-b border-border last:border-b-0 hover:bg-muted/50 transition-colors cursor-pointer",
+                              notification.status === "UNREAD" &&
+                                "bg-primary/5 border-l-4 border-l-primary"
+                            )}
+                            onClick={() => handleNotificationRead(notification.id)}>
+                            <div className="flex items-start gap-2 sm:gap-3">
+                              <div className="text-2xl flex-shrink-0 mt-0.5">
+                                {getNotificationIcon(notification.type)}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2 mb-1">
+                                  <h4 className="text-sm font-medium text-foreground line-clamp-1">
+                                    {notification.title}
+                                  </h4>
+                                  {notification.status === "UNREAD" && (
+                                    <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {notification.message}
+                                </p>
+                                <div className="flex items-center justify-between mt-2">
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatNotificationDate(notification.createdAt)}
+                                  </p>
+                                  {notification.metadata?.stageName && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                                      {notification.metadata.stageName.replace(/_/g, ' ')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {notifications.length > 5 && (
+                  {notifications.length > 0 && (
                     <div className="p-3 border-t border-border bg-muted/30">
                       <button
                         className="w-full text-center text-sm text-primary hover:text-primary/80 font-medium transition-colors"
                         onClick={() => {
                           setShowNotifications(false);
-                          // Navigate to full notifications page if you have one
+                          // TODO: Navigate to full notifications page if you have one
                           // navigate('/notifications');
                         }}>
-                        View all notifications ({notifications.length})
+                        View all notifications
                       </button>
                     </div>
                   )}

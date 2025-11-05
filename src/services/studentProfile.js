@@ -638,6 +638,73 @@ export const loadProfileData = async () => {
   }
 };
 
+// ==================== COURSES ENDPOINTS ====================
+
+/**
+ * Get all courses
+ * GET /api/v1/students/courses
+ * @returns {Promise<Array>} - Array of courses
+ */
+export const getAllCourses = async () => {
+  try {
+    const response = await apiRequest('/api/v1/students/courses');
+    return Array.isArray(response) ? response : (response.data || []);
+  } catch (error) {
+    console.error('Error fetching all courses:', error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Add course to favorites
+ * POST /api/v1/students/courses/favorite/{courseId}
+ * @param {string} courseId - Course UUID
+ * @returns {Promise<Object>} - Success response
+ */
+export const addCourseToFavorites = async (courseId) => {
+  try {
+    if (!courseId) {
+      throw new Error('Course ID is required');
+    }
+
+    console.log('Adding course to favorites:', courseId);
+
+    const response = await apiRequest(`/api/v1/students/courses/favorite/${courseId}`, {
+      method: 'POST',
+    });
+
+    return response;
+  } catch (error) {
+    console.error(`Error adding course ${courseId} to favorites:`, error);
+    throw handleApiError(error);
+  }
+};
+
+/**
+ * Remove course from favorites
+ * DELETE /api/v1/students/courses/favorite/{courseId}
+ * @param {string} courseId - Course UUID
+ * @returns {Promise<Object>} - Success response
+ */
+export const removeCourseFromFavorites = async (courseId) => {
+  try {
+    if (!courseId) {
+      throw new Error('Course ID is required');
+    }
+
+    console.log('Removing course from favorites:', courseId);
+
+    const response = await apiRequest(`/api/v1/students/courses/favorite/${courseId}`, {
+      method: 'DELETE',
+    });
+
+    return response;
+  } catch (error) {
+    console.error(`Error removing course ${courseId} from favorites:`, error);
+    throw handleApiError(error);
+  }
+};
+
 // Export all functions
 export default {
   // Profile
@@ -655,6 +722,10 @@ export default {
   getApplicationById,
   updateApplication,
   submitApplication,
+
+   getAllCourses,
+  addCourseToFavorites,
+  removeCourseFromFavorites,
   
   // Notifications
   getNotifications,

@@ -54,32 +54,30 @@ const toTabCountry = (apiCountry?: string): CountryTab => {
   return "ALL";
 };
 
-const statusConfig: Record<
-  string,
-  { label: string; color: string; icon: React.ComponentType<any> }
-> = {
-  draft: { label: "Draft", color: "bg-gray-100 text-gray-800", icon: Circle },
-  submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800", icon: Clock },
-  in_workflow: { label: "In Progress", color: "bg-blue-100 text-blue-800", icon: Clock },
-  pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800", icon: Clock },
-  under_review: { label: "Under Review", color: "bg-purple-100 text-purple-800", icon: AlertCircle },
-  offer: { label: "Offer Received", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  accepted: { label: "Accepted", color: "bg-green-100 text-green-800", icon: CheckCircle },
-  rejected: { label: "Rejected", color: "bg-red-100 text-red-800", icon: XCircle },
-  waitlist: { label: "Waitlisted", color: "bg-yellow-100 text-yellow-800", icon: AlertCircle },
-  withdrawn: { label: "Withdrawn", color: "bg-gray-100 text-gray-800", icon: XCircle },
-  claim_pending: { label: "Claim Pending", color: "bg-orange-100 text-orange-800", icon: AlertCircle },
+const getStatusConfig = (status?: string) => {
+  const normalizedStatus = (status || "draft").toLowerCase().replace(/_/g, '_');
+  
+  const statusMap: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
+    draft: { label: "Draft", color: "bg-gray-100 text-gray-800", icon: Circle },
+    submitted: { label: "Submitted", color: "bg-blue-100 text-blue-800", icon: Clock },
+    in_workflow: { label: "In Progress", color: "bg-blue-100 text-blue-800", icon: Clock },
+    submission_successful: { label: "Submitted", color: "bg-blue-100 text-blue-800", icon: CheckCircle },
+    pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+    under_review: { label: "Under Review", color: "bg-purple-100 text-purple-800", icon: AlertCircle },
+    offer: { label: "Offer Received", color: "bg-green-100 text-green-800", icon: CheckCircle },
+    accepted: { label: "Accepted", color: "bg-green-100 text-green-800", icon: CheckCircle },
+    rejected: { label: "Rejected", color: "bg-red-100 text-red-800", icon: XCircle },
+    waitlist: { label: "Waitlisted", color: "bg-yellow-100 text-yellow-800", icon: AlertCircle },
+    withdrawn: { label: "Withdrawn", color: "bg-gray-100 text-gray-800", icon: XCircle },
+    claim_pending: { label: "Claim Pending", color: "bg-orange-100 text-orange-800", icon: AlertCircle },
+  };
+
+  return statusMap[normalizedStatus] || statusMap.draft;
 };
 
-const getProgress = (status?: string, completionPercentage?: number) => {
-  if (completionPercentage !== undefined && completionPercentage !== null) {
-    return completionPercentage;
-  }
-  
-  const s = (status || "draft").toLowerCase();
-  if (s === "submitted" || s === "in_workflow" || s === "claim_pending") return 66;
-  if (s === "offer" || s === "rejected" || s === "waitlist" || s === "accepted") return 100;
-  return 33;
+const getProgress = (completionPercentage?: number) => {
+  // Always use API data if available, never fallback to hard-coded values
+  return completionPercentage ?? 0;
 };
 
 // Application Details Modal Component
@@ -95,19 +93,29 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
   }, [isOpen, application]);
 
   const loadProgress = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      const progressData = await getApplicationProgress(application.id);
-      console.log('Application progress:', progressData);
-      setProgress(progressData?.data || progressData);
-    } catch (err) {
-      console.error('Error loading progress:', err);
+  try {
+    setLoading(true);
+    setError("");
+    const progressData = await getApplicationProgress(application.id);
+    console.log('Application progress:', progressData);
+    setProgress(progressData?.data || progressData);
+  } catch (err) {
+    console.error('Error loading progress:', err);
+    
+    // Check if error is about missing workflow
+    const errorMessage = err?.message || '';
+    if (errorMessage.includes('No workflow instance found') || errorMessage.includes('workflow')) {
+      // This is expected for draft applications - show a friendly message
+      setProgress(null);
+      setError(''); // Don't show error for this case
+      console.log('No workflow found - application may be in draft state');
+    } else {
       setError('Failed to load application progress');
-    } finally {
-      setLoading(false);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!isOpen || !application) return null;
 
@@ -157,18 +165,17 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
                   <label className="text-sm font-semibold text-gray-700">Status</label>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const key = (application.status || "draft").toLowerCase();
-                      const conf = statusConfig[key] || statusConfig["draft"];
-                      const IconComp = conf.icon;
-                      return (
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${conf.color}`}>
-                          <div className="inline-flex items-center gap-1">
-                            <IconComp className="w-4 h-4" />
-                            {conf.label}
-                          </div>
-                        </span>
-                      );
-                    })()}
+  const conf = getStatusConfig(application.status);
+  const IconComp = conf.icon;
+  return (
+    <span className={`px-3 py-1 rounded-full text-sm font-medium ${conf.color}`}>
+      <div className="inline-flex items-center gap-1">
+        <IconComp className="w-4 h-4" />
+        {conf.label}
+      </div>
+    </span>
+  );
+})()}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -194,125 +201,152 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
               </div>
 
               {/* Progress Section */}
-              {progress && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-[#2C3539] flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-[#E08D3C]" />
-                    Application Progress
-                  </h3>
-                  
-                  {/* Progress Bar */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600 font-medium">Overall Completion</span>
-                      <span className="text-[#E08D3C] font-bold">
-                        {progress.completionPercentage || 0}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-3">
-                      <div 
-                        className="bg-gradient-to-r from-[#E08D3C] to-[#C4DFF0] h-3 rounded-full transition-all duration-500" 
-                        style={{ width: `${progress.completionPercentage || 0}%` }}
-                      />
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {progress.stepsCompleted || 0} of {progress.totalSteps || 0} steps completed
-                    </p>
-                  </div>
+              {/* Progress Section */}
+{loading ? (
+  <div className="flex justify-center items-center py-8">
+    <Loader2 className="h-6 w-6 animate-spin text-[#E08D3C]" />
+  </div>
+) : progress && progress.completionPercentage !== undefined ? (
+  <div className="space-y-4">
+    <h3 className="text-lg font-bold text-[#2C3539] flex items-center gap-2">
+      <TrendingUp className="w-5 h-5 text-[#E08D3C]" />
+      Application Progress
+    </h3>
+    
+    {/* Progress Bar */}
+    <div className="space-y-2">
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-gray-600 font-medium">Overall Completion</span>
+        <span className="text-[#E08D3C] font-bold">
+          {progress.completionPercentage || 0}%
+        </span>
+      </div>
+      <div className="w-full bg-gray-100 rounded-full h-3">
+        <div 
+          className="bg-gradient-to-r from-[#E08D3C] to-[#C4DFF0] h-3 rounded-full transition-all duration-500" 
+          style={{ width: `${progress.completionPercentage || 0}%` }}
+        />
+      </div>
+      <p className="text-sm text-gray-600">
+        {progress.stepsCompleted || 0} of {progress.totalSteps || 0} steps completed
+      </p>
+    </div>
 
-                  {/* Document Progress */}
-                  {progress.documentProgress && (
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-                      <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        Document Status
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="text-blue-700">Academic Documents:</span>
-                          <p className="font-medium text-blue-900">
-                            {progress.documentProgress.academicDocuments || 'Not Submitted'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-blue-700">English Proficiency:</span>
-                          <p className="font-medium text-blue-900">
-                            {progress.documentProgress.englishProficiency || 'Not Submitted'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-blue-700">Financial Documents:</span>
-                          <p className="font-medium text-blue-900">
-                            {progress.documentProgress.financialDocuments || 'Not Submitted'}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-blue-700">Personal Documents:</span>
-                          <p className="font-medium text-blue-900">
-                            {progress.documentProgress.personalDocuments || 'Not Submitted'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+    {/* Document Progress */}
+    {progress.documentProgress && (
+      <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+        <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Document Status
+        </h4>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <span className="text-blue-700">Academic Documents:</span>
+            <p className="font-medium text-blue-900">
+              {progress.documentProgress.academicDocuments || 'Not Submitted'}
+            </p>
+          </div>
+          <div>
+            <span className="text-blue-700">English Proficiency:</span>
+            <p className="font-medium text-blue-900">
+              {progress.documentProgress.englishProficiency || 'Not Submitted'}
+            </p>
+          </div>
+          <div>
+            <span className="text-blue-700">Financial Documents:</span>
+            <p className="font-medium text-blue-900">
+              {progress.documentProgress.financialDocuments || 'Not Submitted'}
+            </p>
+          </div>
+          <div>
+            <span className="text-blue-700">Personal Documents:</span>
+            <p className="font-medium text-blue-900">
+              {progress.documentProgress.personalDocuments || 'Not Submitted'}
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
 
-                  {/* Stage Progress */}
-                  {progress.stageProgress && progress.stageProgress.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-gray-900">Workflow Stages</h4>
-                      {progress.stageProgress.map((stage, index) => (
-                        <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                stage.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                                stage.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {index + 1}
-                              </span>
-                              <div>
-                                <h5 className="font-semibold text-gray-900">{stage.stageName}</h5>
-                                <p className="text-xs text-gray-600">{stage.stageInstructions}</p>
-                              </div>
-                            </div>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              stage.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                              stage.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {stage.status?.replace('_', ' ')}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            Tasks: {stage.completedTasks || 0} / {stage.totalTasks || 0} completed
-                          </div>
-                          {stage.startedAt && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              Started: {new Date(stage.startedAt).toLocaleDateString()}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Action Required Alert */}
-                  {progress.requiresStudentAction && (
-                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                        <div>
-                          <h4 className="font-semibold text-yellow-900 mb-1">Action Required</h4>
-                          <p className="text-sm text-yellow-700">
-                            Your attention is needed to proceed with this application.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+    {/* Stage Progress */}
+    {progress.stageProgress && progress.stageProgress.length > 0 && (
+      <div className="space-y-3">
+        <h4 className="font-semibold text-gray-900">Workflow Stages</h4>
+        {progress.stageProgress.map((stage, index) => (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                  stage.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                  stage.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {index + 1}
+                </span>
+                <div>
+                  <h5 className="font-semibold text-gray-900">{stage.stageName}</h5>
+                  <p className="text-xs text-gray-600">{stage.stageInstructions}</p>
                 </div>
-              )}
+              </div>
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                stage.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                stage.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                'bg-gray-100 text-gray-800'
+              }`}>
+                {stage.status?.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">
+              Tasks: {stage.completedTasks || 0} / {stage.totalTasks || 0} completed
+            </div>
+            {stage.startedAt && (
+              <div className="text-xs text-gray-500 mt-1">
+                Started: {new Date(stage.startedAt).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+
+    {/* Action Required Alert */}
+    {progress.requiresStudentAction && (
+      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+          <div>
+            <h4 className="font-semibold text-yellow-900 mb-1">Action Required</h4>
+            <p className="text-sm text-yellow-700">
+              Your attention is needed to proceed with this application.
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+) : (application.status?.toUpperCase() === 'DRAFT' || 
+     application.status?.toLowerCase() === 'draft' ||
+     application.completion_percentage === 0) ? (
+  // Show friendly message for draft applications without workflow
+  <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 text-center">
+    <Package className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+    <h4 className="font-semibold text-blue-900 mb-2">Application in Draft</h4>
+    <p className="text-sm text-blue-700">
+      Complete and submit your application to start the workflow process. 
+      Progress tracking will be available after submission.
+    </p>
+  </div>
+) : (
+  // Show generic message for other cases
+  <div className="bg-gray-50 p-6 rounded-lg border border-gray-100 text-center">
+    <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+    <h4 className="font-semibold text-gray-700 mb-2">Workflow Starting</h4>
+    <p className="text-sm text-gray-600">
+      The workflow process is being initialized for this application. 
+      Progress details will be available shortly.
+    </p>
+  </div>
+)}
 
               {/* University Contact Info */}
               {application.adminEmail && (
@@ -344,7 +378,8 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
-            {application.status?.toLowerCase() === 'draft' && (
+            {(application.status?.toUpperCase() === 'DRAFT' || 
+  !application.submittedAt) && (
               <button
                 onClick={() => {
                   onClose();
@@ -372,6 +407,13 @@ export default function Applications() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+const [submittingAppId, setSubmittingAppId] = useState(null);
+const [submitFormData, setSubmitFormData] = useState({
+  confirmationStatement: "",
+  agreeToTerms: false,
+  additionalNotes: ""
+});
 
   useEffect(() => {
     loadApplications();
@@ -430,13 +472,15 @@ export default function Applications() {
               : null;
 
             // Format intake term
-            let formattedIntake = app.intakeTerm || '';
-            if (formattedIntake) {
-              const parts = formattedIntake.split('_');
-              if (parts.length === 2) {
-                formattedIntake = `${parts[0].charAt(0) + parts[0].slice(1).toLowerCase()} ${parts[1]}`;
-              }
-            }
+            let formattedIntake = app.intakeTerm || app.intake_term || '';
+if (formattedIntake) {
+  // Handle SUMMER_2026, summer_2026, Summer 2026, etc.
+  formattedIntake = formattedIntake
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
             // Format deadline
             let formattedDeadline = "TBA";
@@ -467,12 +511,12 @@ export default function Applications() {
             return {
               ...app,
               id: app.id,
-              universityName: app.universityName || universityData?.name || "University",
-              programName: app.programName || app.targetCourseName || "Program",
+              universityName: app.universityName || app.university_name || universityData?.name || "University",
+programName: app.programName || app.program_name || app.targetCourseName || app.target_course_name || "Program",
               intakeTerm: formattedIntake,
-              status: (app.status || 'DRAFT').toLowerCase(),
+              status: app.status || 'DRAFT',
               completionPercentage: app.completionPercentage || app.completion_percentage || 0,
-              referenceNumber: app.referenceNumber || app.reference_number,
+              referenceNumber: app.referenceNumber || app.reference_number || app.refNumber || "Pending",
               universityData,
               adminName: "Admissions Office",
               adminEmail: universityData?.contact_email || "admissions@university.edu",
@@ -480,11 +524,11 @@ export default function Applications() {
               submittedAt: app.submittedAt || app.submitted_at,
               city: universityData?.city || "",
               country: universityData?.country || "",
-              workflowProgress: app.workflowProgress || {
-                estimatedCompletion: app.deadline,
-                pendingTasks: 0,
-                requiresStudentAction: false,
-              },
+              workflowProgress: app.workflowProgress || app.workflow_progress || {
+  estimatedCompletion: app.deadline || app.estimated_completion,
+  pendingTasks: app.pending_tasks || 0,
+  requiresStudentAction: app.requires_student_action || false,
+},
             };
           } catch (enrichErr) {
             console.warn('Error enriching application:', enrichErr);
@@ -493,7 +537,7 @@ export default function Applications() {
               id: app.id,
               universityName: app.universityName || "University",
               programName: app.programName || "Program",
-              status: (app.status || 'DRAFT').toLowerCase(),
+              status: app.status || 'DRAFT',
               completionPercentage: app.completionPercentage || 0,
               universityData: null,
               adminName: "Admissions Office",
@@ -544,8 +588,90 @@ export default function Applications() {
   };
 
   const handleRefresh = () => {
-    loadApplications(false);
-  };
+  loadApplications(false);
+};
+
+const handleSubmitApplication = async () => {
+  if (!submittingAppId || !submitFormData.agreeToTerms) {
+    alert('Please agree to terms and conditions');
+    return;
+  }
+
+  // Find the application to validate
+  const application = applications.find(a => a.id === submittingAppId);
+  
+  // Validate application exists and is in draft status
+  if (!application) {
+    alert('Application not found. Please refresh the page and try again.');
+    setIsSubmitModalOpen(false);
+    return;
+  }
+
+  const status = application.status?.toUpperCase();
+  if (status !== 'DRAFT') {
+    alert(`This application cannot be submitted. Current status: ${application.status}\n\nOnly applications in DRAFT status can be submitted.`);
+    setIsSubmitModalOpen(false);
+    return;
+  }
+
+  try {
+    setLoading(true);
+    const response = await submitApplication(submittingAppId, {
+      confirmationStatement: submitFormData.confirmationStatement || "I confirm that all information provided is accurate.",
+      agreeToTerms: submitFormData.agreeToTerms,
+      additionalNotes: submitFormData.additionalNotes
+    });
+
+    console.log('Submit response:', response);
+    
+    // Show success message
+    const data = response?.data || response;
+    alert(`✅ Application submitted successfully!\n\nReference Number: ${data.referenceNumber || 'N/A'}\nStatus: ${data.status || 'Submitted'}\n\n⚠️ Please keep your reference number safe for tracking.`);
+    
+    // Reset form and close modal
+    setIsSubmitModalOpen(false);
+    setSubmittingAppId(null);
+    setSubmitFormData({
+      confirmationStatement: "",
+      agreeToTerms: false,
+      additionalNotes: ""
+    });
+    
+    // Refresh applications list
+    await loadApplications(false);
+    
+  } catch (error) {
+    console.error('Error submitting application:', error);
+    
+    // Better error messaging
+    const errorMessage = error?.message || '';
+    let userMessage = 'Failed to submit application.';
+    
+    if (errorMessage.includes('not found')) {
+      userMessage = 'Application not found. It may have been deleted or you may not have access to it.';
+    } else if (errorMessage.includes('access denied')) {
+      userMessage = 'Access denied. You do not have permission to submit this application.';
+    } else if (errorMessage.includes('not submittable')) {
+      userMessage = 'This application cannot be submitted. It may have already been submitted or is in an invalid state.';
+    } else if (errorMessage.includes('400')) {
+      userMessage = 'Invalid request. Please ensure all required fields are completed.';
+    }
+    
+    alert(`❌ Submission Failed\n\n${userMessage}\n\nPlease refresh the page and try again.`);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const openSubmitModal = (appId: string) => {
+  setSubmittingAppId(appId);
+  setIsSubmitModalOpen(true);
+  setSubmitFormData({
+    confirmationStatement: "I confirm that all information provided in this application is accurate and complete to the best of my knowledge.",
+    agreeToTerms: false,
+    additionalNotes: ""
+  });
+};
 
   // Filter applications by selected country
   const filteredApplications = selectedCountry === "ALL" 
@@ -688,11 +814,10 @@ export default function Applications() {
       {/* Applications List */}
       <motion.div className="space-y-4" variants={container} initial="hidden" animate="show">
         {filteredApplications.length > 0 ? (
-          filteredApplications.map((application) => {
-            const key = (application.status || "draft").toLowerCase();
-            const conf = statusConfig[key] || statusConfig["draft"];
-            const IconComp = conf.icon;
-            const progress = getProgress(key, application.completionPercentage);
+  filteredApplications.map((application) => {
+    const conf = getStatusConfig(application.status);
+const IconComp = conf.icon;
+    const progress = getProgress(application.completionPercentage);
 
             return (
               <motion.div key={application.id} variants={item} whileHover={{ y: -2, scale: 1.01 }}>
@@ -796,20 +921,21 @@ export default function Applications() {
                     {/* Actions */}
                     <div className="flex flex-col gap-2 lg:w-40">
                       <button
-                        onClick={() => handleViewDetails(application.id)}
-                        className="px-4 py-2 bg-white border-2 border-[#2C3539] text-[#2C3539] rounded-lg hover:bg-[#2C3539] hover:text-white text-sm font-medium flex items-center justify-center gap-2 transition-all">
-                        <Eye className="w-4 h-4" />
-                        View Details
-                      </button>
+              onClick={() => handleViewDetails(application.id)}
+              className="px-4 py-2 bg-white border-2 border-[#2C3539] text-[#2C3539] rounded-lg hover:bg-[#2C3539] hover:text-white text-sm font-medium flex items-center justify-center gap-2 transition-all">
+              <Eye className="w-4 h-4" />
+              View Details
+            </button>
                       
-                      {key === "draft" && (
-                        <button
-                          onClick={() => navigate("/universities")}
-                          className="px-4 py-2 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] text-sm font-medium flex items-center justify-center gap-2 transition-all">
-                          Complete
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      )}
+                      {(application.status?.toUpperCase() === "DRAFT" || 
+              application.status?.toLowerCase() === "draft") && (
+              <button
+                onClick={() => openSubmitModal(application.id)}
+                className="px-4 py-2 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] text-sm font-medium flex items-center justify-center gap-2 transition-all">
+                <Send className="w-4 h-4" />
+                Submit
+              </button>
+            )}
 
                       {application.workflowProgress?.requiresStudentAction && (
                         <button
@@ -861,12 +987,10 @@ export default function Applications() {
               <Clock className="w-8 h-8 text-blue-600" />
               <div>
                 <p className="text-2xl font-bold text-blue-900">
-                  {applications.filter(a => 
-                    a.status === "draft" || 
-                    a.status === "submitted" || 
-                    a.status === "in_workflow" ||
-                    a.status === "claim_pending"
-                  ).length}
+                  {applications.filter(a => {
+  const status = (a.status || '').toUpperCase();
+  return ['DRAFT', 'SUBMITTED', 'IN_WORKFLOW', 'CLAIM_PENDING', 'SUBMISSION_SUCCESSFUL'].includes(status);
+}).length}
                 </p>
                 <p className="text-sm text-blue-700">In Progress</p>
               </div>
@@ -878,7 +1002,10 @@ export default function Applications() {
               <CheckCircle className="w-8 h-8 text-green-600" />
               <div>
                 <p className="text-2xl font-bold text-green-900">
-                  {applications.filter(a => a.status === "offer" || a.status === "accepted").length}
+                  {applications.filter(a => {
+  const status = (a.status || '').toUpperCase();
+  return ['OFFER', 'ACCEPTED'].includes(status);
+}).length}
                 </p>
                 <p className="text-sm text-green-700">Offers</p>
               </div>
@@ -912,15 +1039,170 @@ export default function Applications() {
       )}
 
       {/* Application Details Modal */}
-      <ApplicationDetailsModal
-        application={selectedApplication}
-        isOpen={isDetailsModalOpen}
-        onClose={() => {
-          setIsDetailsModalOpen(false);
-          setSelectedApplication(null);
-        }}
-        onRefresh={handleRefresh}
-      />
+      {/* Application Details Modal */}
+<ApplicationDetailsModal
+  application={selectedApplication}
+  isOpen={isDetailsModalOpen}
+  onClose={() => {
+    setIsDetailsModalOpen(false);
+    setSelectedApplication(null);
+  }}
+  onRefresh={handleRefresh}
+/>
+
+{/* Submit Application Modal */}
+{isSubmitModalOpen && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      {/* Header */}
+      <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C]">
+        <div className="flex items-center justify-between text-white">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 rounded-lg bg-white bg-opacity-20 flex items-center justify-center">
+              <Send className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">Submit Application</h2>
+              <p className="text-white text-opacity-90">Review and confirm your submission</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setIsSubmitModalOpen(false);
+              setSubmittingAppId(null);
+            }}
+            className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors">
+            <XCircle className="w-6 h-6" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="p-6 space-y-6">
+        {/* Important Notice */}
+        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-yellow-900 mb-1">Important Notice</h4>
+              <p className="text-sm text-yellow-700">
+                Once submitted, your application will be sent to the university for review. 
+                Please ensure all information is accurate and complete before proceeding.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Confirmation Statement */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-gray-700">
+            Confirmation Statement <span className="text-red-500">*</span>
+          </label>
+          <textarea
+            value={submitFormData.confirmationStatement}
+            onChange={(e) => setSubmitFormData({ ...submitFormData, confirmationStatement: e.target.value })}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E08D3C] focus:border-transparent"
+            rows={3}
+            placeholder="Enter your confirmation statement..."
+          />
+          <p className="text-xs text-gray-500">
+            Please confirm that all information provided is accurate
+          </p>
+        </div>
+
+        {/* Additional Notes */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-gray-700">
+            Additional Notes (Optional)
+          </label>
+          <textarea
+            value={submitFormData.additionalNotes}
+            onChange={(e) => setSubmitFormData({ ...submitFormData, additionalNotes: e.target.value })}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E08D3C] focus:border-transparent"
+            rows={3}
+            placeholder="Any additional information you'd like to include..."
+          />
+        </div>
+
+        {/* Terms Agreement */}
+        <div className="space-y-3">
+          <label className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
+            <input
+              type="checkbox"
+              checked={submitFormData.agreeToTerms}
+              onChange={(e) => setSubmitFormData({ ...submitFormData, agreeToTerms: e.target.checked })}
+              className="mt-1 w-5 h-5 text-[#E08D3C] border-gray-300 rounded focus:ring-[#E08D3C]"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                I agree to the terms and conditions <span className="text-red-500">*</span>
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                By checking this box, you confirm that all information provided is accurate and you 
+                agree to the university's application terms and conditions.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        {/* What Happens Next */}
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            What Happens Next?
+          </h4>
+          <ul className="space-y-2 text-sm text-blue-700">
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>Document verification will begin</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>You will receive email notifications for any updates</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>Processing typically takes 72 hours</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>Keep your reference number safe for tracking</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-between">
+        <button
+          onClick={() => {
+            setIsSubmitModalOpen(false);
+            setSubmittingAppId(null);
+          }}
+          disabled={loading}
+          className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmitApplication}
+          disabled={loading || !submitFormData.agreeToTerms || !submitFormData.confirmationStatement}
+          className="px-6 py-2 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Submit Application
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </motion.div>
   );
 }

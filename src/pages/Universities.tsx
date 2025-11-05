@@ -36,9 +36,17 @@ import {
   Lock,
   Upload,
   Check,
+  AlertCircle,      // ADD THIS
+  ChevronRight,
 } from "lucide-react";
 import { universityAPI } from "@/services/api";
-import { createApplication, submitApplication } from "@/services/studentProfile";
+import { 
+  createApplication, 
+  submitApplication,
+  getAllCourses,
+  addCourseToFavorites,
+  removeCourseFromFavorites
+} from "@/services/studentProfile";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Country = "DE" | "UK";
@@ -77,102 +85,68 @@ const loadCourses = async () => {
     setLoading(true);
     setError(null);
     
-    console.log('[CourseModal] Fetching courses for university:', university.id);
+    console.log('[CourseModal] Fetching ALL courses from API...');
     
-    // First, try to get courses from the university object itself
-    // Your API returns courses nested in the university object
-    if (university.courses && Array.isArray(university.courses) && university.courses.length > 0) {
-      console.log('[CourseModal] Using courses from university object:', university.courses);
-      
-      const validCourses = university.courses
-        .filter(course => course.id)
-        .map(course => ({
-          id: course.id,
-          university_id: course.university_id,
-          name: course.name || course.official_name,
-          subject_area: course.field_of_study || 'General',
-          degree_type: course.degree_level?.toLowerCase() || 'bachelors',
-          language: course.language || 'English',
-          duration_months: (course.duration_years || 3) * 12,
-          intake_season: course.intake_season || 'WINTER',
-          tuition_fee: course.tuition_fee_international || 0,
-          min_gpa: course.min_gpa || '2.5',
-          min_ielts: course.min_ielts || '6.5',
-          description: course.description || '',
-          course_code: course.course_code || '',
-        }));
-      
-      console.log('[CourseModal] Mapped courses from university object:', validCourses);
-      setCourses(validCourses);
-      setLoading(false);
-      return;
-    }
+    // Fetch all courses from the API
+    const response = await getAllCourses();
     
-    // If no courses in university object, fetch from API
-    console.log('[CourseModal] Fetching courses from API...');
-    const coursesData = await universityAPI.getUniversityCourses(university.id);
+    console.log('[CourseModal] Raw courses API response:', response);
     
-    console.log('[CourseModal] Raw courses data from API:', coursesData);
-    
-    // Handle different response structures
+    // Extract courses array
     let coursesArray = [];
-    if (Array.isArray(coursesData)) {
-      coursesArray = coursesData;
-    } else if (coursesData?.data && Array.isArray(coursesData.data)) {
-      coursesArray = coursesData.data;
-    } else if (coursesData?.courses && Array.isArray(coursesData.courses)) {
-      coursesArray = coursesData.courses;
+    if (Array.isArray(response)) {
+      coursesArray = response;
+    } else if (response?.data && Array.isArray(response.data)) {
+      coursesArray = response.data;
     }
     
-    // Map backend course structure to frontend structure
-    const validCourses = coursesArray
-      .filter(course => course.id)
-      .map(course => ({
-        id: course.id,
-        university_id: course.university_id,
-        name: course.name || course.official_name,
-        subject_area: course.field_of_study || 'General',
-        degree_type: course.degree_level?.toLowerCase() || 'bachelors',
-        language: course.language || 'English',
-        duration_months: (course.duration_years || 3) * 12,
-        intake_season: course.intake_season || 'WINTER',
-        tuition_fee: course.tuition_fee_international || 0,
-        min_gpa: course.min_gpa || '2.5',
-        min_ielts: course.min_ielts || '6.5',
-        description: course.description || '',
-        course_code: course.course_code || '',
-      }));
+    console.log('[CourseModal] Total courses from API:', coursesArray.length);
     
-    console.log('[CourseModal] Mapped courses from API:', validCourses);
-    setCourses(validCourses);
+    // Filter courses for the selected university
+    const universityCourses = coursesArray.filter(
+      course => course.universityId === university.id
+    );
+    
+    console.log('[CourseModal] Courses for this university:', universityCourses.length);
+    
+    // Map API response to internal format
+    const mappedCourses = universityCourses.map(course => ({
+      id: course.id,
+      university_id: course.universityId,
+      universityName: course.universityName,
+      universityCode: course.universityCode,
+      universityCountry: course.universityCountry,
+      name: course.name,
+      courseCode: course.courseCode,
+      subject_area: course.fieldOfStudy,
+      degree_type: course.degreeLevel?.toLowerCase() || 'bachelors',
+      degree_level: course.degreeType,
+      language: 'English',
+      duration_months: (course.durationYears || 3) * 12,
+      duration_years: course.durationYears,
+      intake_season: course.intakeSeasons?.[0] || 'WINTER',
+      tuition_fee: course.tuitionInternational || 0,
+      currency: course.currency || 'EUR',
+      min_gpa: '2.5',
+      min_ielts: '6.5',
+      study_mode: course.studyMode,
+      scholarships_available: course.scholarshipsAvailable,
+      career_opportunities: course.careerOpportunities || [],
+      is_popular: course.isPopular,
+      rating: course.rating,
+      has_applied: course.hasApplied,
+      is_favorite: course.isFavorite,
+      can_apply_now: course.canApplyNow,
+      description: `${course.degreeType} in ${course.fieldOfStudy}`,
+    }));
+    
+    console.log('[CourseModal] ✅ Mapped courses:', mappedCourses);
+    setCourses(mappedCourses);
+    
   } catch (err) {
-    console.error("Error loading courses:", err);
-    
-    // Fallback: try to use courses from university object even on error
-    if (university.courses && Array.isArray(university.courses) && university.courses.length > 0) {
-      console.log('[CourseModal] Using fallback - courses from university object');
-      const validCourses = university.courses
-        .filter(course => course.id)
-        .map(course => ({
-          id: course.id,
-          university_id: course.university_id,
-          name: course.name || course.official_name,
-          subject_area: course.field_of_study || 'General',
-          degree_type: course.degree_level?.toLowerCase() || 'bachelors',
-          language: course.language || 'English',
-          duration_months: (course.duration_years || 3) * 12,
-          intake_season: course.intake_season || 'WINTER',
-          tuition_fee: course.tuition_fee_international || 0,
-          min_gpa: course.min_gpa || '2.5',
-          min_ielts: course.min_ielts || '6.5',
-          description: course.description || '',
-          course_code: course.course_code || '',
-        }));
-      
-      setCourses(validCourses);
-    } else {
-      setError("Failed to load courses");
-    }
+    console.error("❌ Error loading courses:", err);
+    setError("Failed to load courses. Please try again.");
+    setCourses([]);
   } finally {
     setLoading(false);
   }
@@ -248,20 +222,40 @@ const loadCourses = async () => {
     return;
   }
   
-  // Store both course and university BEFORE closing modal
+  // CRITICAL: Store course and university in parent state
   console.log('Setting selectedCourse and selectedUniversity...');
   setSelectedCourse(course);
   setSelectedUniversity(university);
   
-  // Open form modal FIRST (both modals can be open simultaneously briefly)
-  console.log('Opening form modal...');
-  setIsFormModalOpen(true);
+  // IMPORTANT: Close course modal first
+  console.log('Closing course modal...');
+  onClose();
   
-  // Then close course modal with a small delay to ensure state propagation
+  // THEN open form modal with a small delay to ensure state is updated
   setTimeout(() => {
-    console.log('Closing course modal...');
-    onClose();
-  }, 50);
+    console.log('Opening form modal...');
+    setIsFormModalOpen(true);
+  }, 100);
+};
+
+const handleFavoriteClick = async (courseId, isFavorite) => {
+  try {
+    console.log(`[CourseModal] Toggling favorite for course ${courseId}, current state: ${isFavorite}`);
+    
+    if (isFavorite) {
+      await removeCourseFromFavorites(courseId);
+      console.log(`[CourseModal] ✅ Removed course ${courseId} from favorites`);
+    } else {
+      await addCourseToFavorites(courseId);
+      console.log(`[CourseModal] ✅ Added course ${courseId} to favorites`);
+    }
+    
+    // Refresh courses to update favorite status
+    await loadCourses();
+  } catch (error) {
+    console.error('Error toggling favorite:', error);
+    alert('Failed to update favorites. Please try again.');
+  }
 };
 
   if (!isOpen) return null;
@@ -376,21 +370,35 @@ const loadCourses = async () => {
     className="p-4 hover:shadow-md transition-shadow">
                     <div className="space-y-3">
                       <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-lg text-[#2C3539] line-clamp-2 flex-1">
-                          {course.name}
-                        </h3>
-                        <Badge
-                          className={`ml-2 text-xs ${
-                            course.degree_type === "phd"
-                              ? "bg-purple-100 text-purple-800"
-                              : course.degree_type === "masters"
-                              ? "bg-blue-100 text-blue-800"
-                              : "bg-green-100 text-green-800"
-                          }`}>
-                          {course.degree_type.charAt(0).toUpperCase() +
-                            course.degree_type.slice(1)}
-                        </Badge>
-                      </div>
+  <h3 className="font-bold text-lg text-[#2C3539] line-clamp-2 flex-1">
+    {course.name}
+  </h3>
+  <div className="flex items-center gap-2 ml-2">
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        handleFavoriteClick(course.id, course.is_favorite);
+      }}
+      className={`p-1 rounded-lg transition-all ${
+        course.is_favorite
+          ? 'text-red-500 hover:text-red-600 hover:bg-red-50'
+          : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+      }`}>
+      <Heart className={`w-4 h-4 ${course.is_favorite ? 'fill-current' : ''}`} />
+    </button>
+    <Badge
+      className={`text-xs ${
+        course.degree_type === "phd"
+          ? "bg-purple-100 text-purple-800"
+          : course.degree_type === "masters"
+          ? "bg-blue-100 text-blue-800"
+          : "bg-green-100 text-green-800"
+      }`}>
+      {course.degree_type.charAt(0).toUpperCase() +
+        course.degree_type.slice(1)}
+    </Badge>
+  </div>
+</div>
 
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="outline" className="text-xs">
@@ -474,351 +482,1038 @@ const loadCourses = async () => {
 };
 
 // Application Form Modal
-const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    dateOfBirth: "",
-    nationality: "",
-    tenthMarks: "",
-    twelfthMarks: "",
-    graduationMarks: "",
-    passportNumber: "",
-    apsCertificate: null,
-    lomFile: null,
-    additionalInfo: "",
+// const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
+//   const [formData, setFormData] = useState({
+//     fullName: "",
+//     email: "",
+//     phone: "",
+//     dateOfBirth: "",
+//     nationality: "",
+//     tenthMarks: "",
+//     twelfthMarks: "",
+//     graduationMarks: "",
+//     passportNumber: "",
+//     apsCertificate: null,
+//     lomFile: null,
+//     additionalInfo: "",
+//   });
+//   const [errors, setErrors] = useState({});
+//   const [loading, setLoading] = useState(false);
+
+//   useEffect(() => {
+//     if (isOpen) {
+//       setFormData({
+//         fullName: "",
+//         email: "",
+//         phone: "",
+//         dateOfBirth: "",
+//         nationality: "",
+//         tenthMarks: "",
+//         twelfthMarks: "",
+//         graduationMarks: "",
+//         passportNumber: "",
+//         apsCertificate: null,
+//         lomFile: null,
+//         additionalInfo: "",
+//       });
+//       setErrors({});
+//     }
+//   }, [isOpen]);
+
+//   const handleInputChange = (e) => {
+//     const { name, value } = e.target;
+//     setFormData((prev) => ({ ...prev, [name]: value }));
+//     if (errors[name]) {
+//       setErrors((prev) => ({ ...prev, [name]: "" }));
+//     }
+//   };
+
+//   const handleFileChange = (e, field) => {
+//     const file = e.target.files[0];
+//     if (file && file.size > 5 * 1024 * 1024) {
+//       alert("File size too large. Max 5MB.");
+//       return;
+//     }
+//     setFormData((prev) => ({ ...prev, [field]: file }));
+//     if (errors[field]) {
+//       setErrors((prev) => ({ ...prev, [field]: "" }));
+//     }
+//   };
+
+//   const validateForm = () => {
+//   const newErrors = {};
+
+//   // Only validate email format if user enters something
+//   if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
+//     newErrors.email = "Invalid email";
+//   }
+
+//   setErrors(newErrors);
+//   return Object.keys(newErrors).length === 0;
+// };
+
+
+//   const handleSubmit = (e) => {
+//   e.preventDefault();
+//   console.log("=== FORM SUBMIT ===");
+//   console.log("University prop in modal:", university);
+//   console.log("Form data:", formData);
+  
+//   if (!university) {
+//     console.error("No university in ApplicationFormModal!");
+//     alert("Error: University information missing. Please try again.");
+//     return;
+//   }
+  
+//   if (validateForm()) {
+//     setLoading(true);
+//     setTimeout(() => {
+//       setLoading(false);
+//       console.log("Calling onSubmit with university:", university);
+//       onSubmit(formData, university);
+//     }, 1000);
+//   }
+// };
+
+//   if (!isOpen) return null;
+
+//   return (
+//     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
+//       <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-lg">
+//         {/* Modal Header */}
+//         <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
+//           <div className="flex items-center justify-between">
+//             <div className="flex items-center space-x-2">
+//               <Building2 className="w-6 h-6" />
+//               <div>
+//                 <h2 className="text-lg font-bold">Apply to {university?.name}</h2>
+//               </div>
+//             </div>
+//             <Button 
+//               variant="ghost" 
+//               size="sm" 
+//               onClick={onClose} 
+//               className="text-white hover:bg-white hover:bg-opacity-20"
+//             >
+//               <X className="w-4 h-4" />
+//             </Button>
+//           </div>
+//         </div>
+
+//         {/* Form */}
+//         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+//           {/* Personal Information */}
+//           <div className="space-y-2">
+//             <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
+//               <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">1</span>
+//               Personal Information
+//             </h3>
+//             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+//               <div className="space-y-1">
+//                 <Label htmlFor="fullName" className="text-xs font-semibold text-gray-700">Full Name</Label>
+//                 <Input 
+//                   id="fullName" 
+//                   name="fullName" 
+//                   value={formData.fullName} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.fullName ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="email" className="text-xs font-semibold text-gray-700">Email</Label>
+//                 <Input 
+//                   id="email" 
+//                   name="email" 
+//                   type="email" 
+//                   value={formData.email} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.email ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="phone" className="text-xs font-semibold text-gray-700">Phone</Label>
+//                 <Input 
+//                   id="phone" 
+//                   name="phone" 
+//                   value={formData.phone} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.phone ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="dateOfBirth" className="text-xs font-semibold text-gray-700">Date of Birth</Label>
+//                 <Input 
+//                   id="dateOfBirth" 
+//                   name="dateOfBirth" 
+//                   type="date" 
+//                   value={formData.dateOfBirth} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.dateOfBirth ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.dateOfBirth && <p className="text-red-500 text-xs">{errors.dateOfBirth}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="nationality" className="text-xs font-semibold text-gray-700">Nationality</Label>
+//                 <Input 
+//                   id="nationality" 
+//                   name="nationality" 
+//                   value={formData.nationality} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.nationality ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.nationality && <p className="text-red-500 text-xs">{errors.nationality}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="passportNumber" className="text-xs font-semibold text-gray-700">Passport Number</Label>
+//                 <Input 
+//                   id="passportNumber" 
+//                   name="passportNumber" 
+//                   value={formData.passportNumber} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.passportNumber ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.passportNumber && <p className="text-red-500 text-xs">{errors.passportNumber}</p>}
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Academic Information */}
+//           <div className="space-y-2">
+//             <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
+//               <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">2</span>
+//               Academic Information
+//             </h3>
+//             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+//               <div className="space-y-1">
+//                 <Label htmlFor="tenthMarks" className="text-xs font-semibold text-gray-700">10th Marks</Label>
+//                 <Input 
+//                   id="tenthMarks" 
+//                   name="tenthMarks" 
+//                   type="number" 
+//                   step="0.01" 
+//                   value={formData.tenthMarks} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.tenthMarks ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.tenthMarks && <p className="text-red-500 text-xs">{errors.tenthMarks}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="twelfthMarks" className="text-xs font-semibold text-gray-700">12th Marks</Label>
+//                 <Input 
+//                   id="twelfthMarks" 
+//                   name="twelfthMarks" 
+//                   type="number" 
+//                   step="0.01" 
+//                   value={formData.twelfthMarks} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.twelfthMarks ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.twelfthMarks && <p className="text-red-500 text-xs">{errors.twelfthMarks}</p>}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="graduationMarks" className="text-xs font-semibold text-gray-700">Graduation Marks</Label>
+//                 <Input 
+//                   id="graduationMarks" 
+//                   name="graduationMarks" 
+//                   type="number" 
+//                   step="0.01" 
+//                   value={formData.graduationMarks} 
+//                   onChange={handleInputChange} 
+//                   className={cn("h-9 text-sm", errors.graduationMarks ? "border-red-500" : "border-gray-200")} 
+//                 />
+//                 {errors.graduationMarks && <p className="text-red-500 text-xs">{errors.graduationMarks}</p>}
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Documents */}
+//           <div className="space-y-2">
+//             <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
+//               <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">3</span>
+//               Documents
+//             </h3>
+//             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+//               <div className="space-y-1">
+//                 <Label htmlFor="apsCertificate" className="text-xs font-semibold text-gray-700">APS Certificate</Label>
+//                 <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center">
+//                   <Input 
+//                     id="apsCertificate" 
+//                     type="file" 
+//                     accept=".pdf,.doc,.docx" 
+//                     onChange={(e) => handleFileChange(e, "apsCertificate")} 
+//                     className={cn("text-sm", errors.apsCertificate ? "border-red-500" : "")} 
+//                   />
+//                   <p className="text-xs text-gray-500 mt-1">PDF/DOC (Max 5MB)</p>
+//                 </div>
+//                 {errors.apsCertificate && <p className="text-red-500 text-xs">{errors.apsCertificate}</p>}
+//                 {formData.apsCertificate && (
+//                   <div className="flex items-center text-xs text-green-700">
+//                     <Check className="w-3 h-3 text-green-600 mr-1" />
+//                     {formData.apsCertificate.name}
+//                   </div>
+//                 )}
+//               </div>
+//               <div className="space-y-1">
+//                 <Label htmlFor="lomFile" className="text-xs font-semibold text-gray-700">Letter of Motivation</Label>
+//                 <div className="border border-dashed border-red-300 rounded-lg p-3 text-center bg-red-50">
+//                   <Input 
+//                     id="lomFile" 
+//                     type="file" 
+//                     accept=".pdf,.doc,.docx" 
+//                     onChange={(e) => handleFileChange(e, "lomFile")} 
+//                     className={cn("text-sm", errors.lomFile ? "border-red-500" : "")} 
+//                   />
+//                   <p className="text-xs text-red-600 mt-1">Required</p>
+//                 </div>
+//                 {errors.lomFile && <p className="text-red-500 text-xs">{errors.lomFile}</p>}
+//                 {formData.lomFile && (
+//                   <div className="flex items-center text-xs text-green-700">
+//                     <Check className="w-3 h-3 text-green-600 mr-1" />
+//                     {formData.lomFile.name}
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Additional Information */}
+//           <div className="space-y-1">
+//             <Label htmlFor="additionalInfo" className="text-xs font-semibold text-gray-700">Additional Information</Label>
+//             <Textarea 
+//               id="additionalInfo" 
+//               name="additionalInfo" 
+//               value={formData.additionalInfo} 
+//               onChange={handleInputChange} 
+//               rows={3} 
+//               className="text-sm border-gray-200" 
+//               placeholder="Optional information..."
+//             />
+//           </div>
+
+//           {/* Submit Button */}
+//           <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
+//             <Button 
+//               type="button" 
+//               variant="outline" 
+//               onClick={onClose} 
+//               className="px-4 py-2 text-xs" 
+//               disabled={loading}
+//             >
+//               Cancel
+//             </Button>
+//             <Button 
+//               type="submit" 
+//               className="px-4 py-2 bg-primary text-white text-xs" 
+//               disabled={loading}
+//             >
+//               {loading ? (
+//                 <>
+//                   <Loader2 className="w-4 h-4 animate-spin mr-1" />
+//                   Submitting...
+//                 </>
+//               ) : (
+//                 <>
+//                   <Upload className="w-4 h-4 mr-1" />
+//                   Submit
+//                 </>
+//               )}
+//             </Button>
+//           </div>
+//         </form>
+//       </div>
+//     </div>
+//   );
+// };
+
+// ============ DYNAMIC FORM FIELD GENERATOR ============
+const generateFormFields = (course, university) => {
+  const fields = [];
+  
+  // Section 1: Personal Information (Always Required)
+  fields.push({
+    section: 'Personal Information',
+    sectionNumber: 1,
+    fields: [
+      {
+        id: 'fullName',
+        label: 'Full Name',
+        type: 'text',
+        required: true,
+        placeholder: 'Enter your full name',
+        validation: (value) => value?.trim() ? null : 'Full name is required'
+      },
+      {
+        id: 'email',
+        label: 'Email Address',
+        type: 'email',
+        required: true,
+        placeholder: 'your.email@example.com',
+        validation: (value) => {
+          if (!value?.trim()) return 'Email is required';
+          if (!/\S+@\S+\.\S+/.test(value)) return 'Invalid email format';
+          return null;
+        }
+      },
+      {
+        id: 'phone',
+        label: 'Phone Number',
+        type: 'tel',
+        required: true,
+        placeholder: '+1234567890',
+        validation: (value) => value?.trim() ? null : 'Phone number is required'
+      },
+      {
+        id: 'dateOfBirth',
+        label: 'Date of Birth',
+        type: 'date',
+        required: true,
+        validation: (value) => value ? null : 'Date of birth is required'
+      },
+      {
+        id: 'nationality',
+        label: 'Nationality',
+        type: 'text',
+        required: true,
+        placeholder: 'Your nationality',
+        validation: (value) => value?.trim() ? null : 'Nationality is required'
+      },
+      {
+        id: 'passportNumber',
+        label: 'Passport Number',
+        type: 'text',
+        required: false,
+        placeholder: 'Optional'
+      }
+    ]
   });
-  const [errors, setErrors] = useState({});
+  
+  // Section 2: Academic Background (Dynamic based on degree level)
+  const academicFields = [];
+  
+  // Previous degree required for Masters/PhD
+  if (course.degree_type === 'masters' || course.degree_type === 'phd') {
+    academicFields.push({
+      id: 'previousDegree',
+      label: 'Previous Degree',
+      type: 'text',
+      required: true,
+      placeholder: 'e.g., Bachelor of Science in Computer Science',
+      validation: (value) => value?.trim() ? null : 'Previous degree is required for graduate programs'
+    });
+    
+    academicFields.push({
+      id: 'previousUniversity',
+      label: 'Previous University',
+      type: 'text',
+      required: true,
+      placeholder: 'Name of your previous university',
+      validation: (value) => value?.trim() ? null : 'Previous university is required'
+    });
+    
+    academicFields.push({
+      id: 'graduationYear',
+      label: 'Graduation Year',
+      type: 'number',
+      required: true,
+      placeholder: 'e.g., 2023',
+      validation: (value) => {
+        if (!value) return 'Graduation year is required';
+        const year = parseInt(value);
+        if (year < 1950 || year > new Date().getFullYear() + 1) return 'Invalid year';
+        return null;
+      }
+    });
+  }
+  
+  // For PhD, add research experience
+  if (course.degree_type === 'phd') {
+    academicFields.push({
+      id: 'researchExperience',
+      label: 'Research Experience',
+      type: 'textarea',
+      required: true,
+      placeholder: 'Describe your research experience and interests...',
+      rows: 4,
+      validation: (value) => {
+        if (!value?.trim()) return 'Research experience is required for PhD programs';
+        if (value.trim().length < 100) return 'Please provide at least 100 characters';
+        return null;
+      }
+    });
+    
+    academicFields.push({
+      id: 'publications',
+      label: 'Publications (if any)',
+      type: 'textarea',
+      required: false,
+      placeholder: 'List your publications...',
+      rows: 3
+    });
+  }
+  
+  // GPA/Grade (Always required)
+  academicFields.push({
+    id: 'gpa',
+    label: `GPA / Grade ${course.min_gpa ? `(Min: ${course.min_gpa})` : ''}`,
+    type: 'text',
+    required: true,
+    placeholder: course.min_gpa ? `Minimum: ${course.min_gpa}` : 'Your GPA or grade',
+    validation: (value) => value?.trim() ? null : 'GPA/Grade is required'
+  });
+  
+  academicFields.push({
+    id: 'gradingSystem',
+    label: 'Grading System',
+    type: 'select',
+    required: false,
+    options: [
+      { value: '', label: 'Select grading system' },
+      { value: '4.0', label: '4.0 Scale' },
+      { value: '10.0', label: '10.0 Scale' },
+      { value: '100', label: 'Percentage (100)' },
+      { value: 'other', label: 'Other' }
+    ]
+  });
+  
+  fields.push({
+    section: 'Academic Background',
+    sectionNumber: 2,
+    fields: academicFields
+  });
+  
+  // Section 3: Language Proficiency (Dynamic based on course requirements)
+  const languageFields = [];
+  
+  languageFields.push({
+    id: 'languageTest',
+    label: `Language Test ${course.min_ielts ? `(Min IELTS: ${course.min_ielts})` : ''}`,
+    type: 'select',
+    required: course.min_ielts ? true : false,
+    options: [
+      { value: '', label: 'Select test type' },
+      { value: 'IELTS', label: 'IELTS' },
+      { value: 'TOEFL', label: 'TOEFL' },
+      { value: 'PTE', label: 'PTE' },
+      { value: 'Duolingo', label: 'Duolingo English Test' },
+      { value: 'Cambridge', label: 'Cambridge English' },
+      { value: 'other', label: 'Other' }
+    ],
+    validation: course.min_ielts 
+      ? (value) => value ? null : 'Language test is required for this course'
+      : null
+  });
+  
+  languageFields.push({
+    id: 'languageScore',
+    label: 'Score',
+    type: 'text',
+    required: course.min_ielts ? true : false,
+    placeholder: course.min_ielts ? `Minimum: ${course.min_ielts}` : 'Your score',
+    validation: course.min_ielts
+      ? (value) => value?.trim() ? null : 'Language score is required'
+      : null
+  });
+  
+  languageFields.push({
+    id: 'testDate',
+    label: 'Test Date',
+    type: 'date',
+    required: false,
+    placeholder: 'When did you take the test?'
+  });
+  
+  fields.push({
+    section: 'Language Proficiency',
+    sectionNumber: 3,
+    fields: languageFields
+  });
+  
+  // Section 4: Work Experience (For Masters/PhD or Professional programs)
+  if (course.degree_type === 'masters' || course.degree_type === 'phd' || 
+      course.name?.toLowerCase().includes('mba') || 
+      course.name?.toLowerCase().includes('executive')) {
+    fields.push({
+      section: 'Work Experience',
+      sectionNumber: 4,
+      fields: [
+        {
+          id: 'workExperience',
+          label: 'Work Experience',
+          type: 'textarea',
+          required: course.degree_type === 'phd' || course.name?.toLowerCase().includes('mba'),
+          placeholder: 'Describe your relevant work experience...',
+          rows: 4,
+          validation: (course.degree_type === 'phd' || course.name?.toLowerCase().includes('mba'))
+            ? (value) => {
+                if (!value?.trim()) return 'Work experience is required for this program';
+                if (value.trim().length < 50) return 'Please provide at least 50 characters';
+                return null;
+              }
+            : null
+        },
+        {
+          id: 'yearsOfExperience',
+          label: 'Years of Experience',
+          type: 'number',
+          required: false,
+          placeholder: 'e.g., 3',
+          min: 0,
+          max: 50
+        }
+      ]
+    });
+  }
+  
+  // Add this BEFORE the "Letter of Motivation" section
+
+// Section: Intake Preference (Dynamic based on available intakes)
+const intakeSectionNumber = fields.length + 1;
+const intakeFields = [];
+
+// Get available intake seasons from course
+const availableIntakes = course.intake_season 
+  ? [course.intake_season] 
+  : ['WINTER', 'SUMMER', 'SPRING', 'FALL'];
+
+// Current year and next 2 years
+const currentYear = new Date().getFullYear();
+const availableYears = [currentYear, currentYear + 1, currentYear + 2];
+
+intakeFields.push({
+  id: 'targetSemester',
+  label: 'Preferred Intake Season',
+  type: 'select',
+  required: true,
+  options: [
+    { value: '', label: 'Select intake season' },
+    ...availableIntakes.map(intake => ({
+      value: intake.toUpperCase(),
+      label: intake.charAt(0).toUpperCase() + intake.slice(1).toLowerCase()
+    }))
+  ],
+  validation: (value) => value ? null : 'Please select your preferred intake season'
+});
+
+intakeFields.push({
+  id: 'targetYear',
+  label: 'Preferred Intake Year',
+  type: 'select',
+  required: true,
+  options: [
+    { value: '', label: 'Select year' },
+    ...availableYears.map(year => ({
+      value: year.toString(),
+      label: year.toString()
+    }))
+  ],
+  validation: (value) => value ? null : 'Please select your preferred intake year'
+});
+
+fields.push({
+  section: 'Intake Preference',
+  sectionNumber: intakeSectionNumber,
+  fields: intakeFields
+});
+
+  // Section 5: Letter of Motivation (Always Required)
+  const motivationSectionNumber = fields.length + 1;
+  fields.push({
+    section: 'Letter of Motivation',
+    sectionNumber: motivationSectionNumber,
+    fields: [
+      {
+        id: 'motivation',
+        label: 'Why do you want to study this course?',
+        type: 'textarea',
+        required: true,
+        placeholder: `Explain your motivation for applying to ${course.name} at ${university?.name}...\n\nMinimum 100 characters required.`,
+        rows: 6,
+        validation: (value) => {
+          if (!value?.trim()) return 'Letter of motivation is required';
+          if (value.trim().length < 100) return 'Motivation letter should be at least 100 characters';
+          return null;
+        },
+        showCharCount: true,
+        minChars: 100
+      },
+      {
+        id: 'careerGoals',
+        label: 'Career Goals',
+        type: 'textarea',
+        required: false,
+        placeholder: 'What are your career goals after completing this program?',
+        rows: 3
+      }
+    ]
+  });
+  
+  // Section 6: Additional Documents/Information
+  const additionalSectionNumber = fields.length + 1;
+  const additionalFields = [];
+  
+  // For specific programs, add specific requirements
+  if (course.field_of_study?.toLowerCase().includes('art') || 
+      course.field_of_study?.toLowerCase().includes('design')) {
+    additionalFields.push({
+      id: 'portfolioLink',
+      label: 'Portfolio Link',
+      type: 'url',
+      required: true,
+      placeholder: 'https://yourportfolio.com',
+      validation: (value) => {
+        if (!value?.trim()) return 'Portfolio is required for this program';
+        try {
+          new URL(value);
+          return null;
+        } catch {
+          return 'Please enter a valid URL';
+        }
+      }
+    });
+  }
+  
+  if (course.field_of_study?.toLowerCase().includes('music')) {
+    additionalFields.push({
+      id: 'auditionLink',
+      label: 'Audition/Performance Link',
+      type: 'url',
+      required: false,
+      placeholder: 'https://youtube.com/...'
+    });
+  }
+  
+  additionalFields.push({
+    id: 'additionalInfo',
+    label: 'Additional Information',
+    type: 'textarea',
+    required: false,
+    placeholder: 'Share any additional information that supports your application...',
+    rows: 3
+  });
+  
+  if (additionalFields.length > 0) {
+    fields.push({
+      section: 'Additional Information',
+      sectionNumber: additionalSectionNumber,
+      fields: additionalFields
+    });
+  }
+  
+  return fields;
+};
+
+// ============ DYNAMIC APPLICATION FORM ============
+// ============ DYNAMIC APPLICATION FORM ============
+const DynamicApplicationFormModal = ({ university, course, isOpen, onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [formFields, setFormFields] = useState([]);
 
+  // Generate dynamic form fields when course changes
   useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        fullName: "",
-        email: "",
-        phone: "",
-        dateOfBirth: "",
-        nationality: "",
-        tenthMarks: "",
-        twelfthMarks: "",
-        graduationMarks: "",
-        passportNumber: "",
-        apsCertificate: null,
-        lomFile: null,
-        additionalInfo: "",
+    if (isOpen && course && university) {
+      console.log('[DynamicForm] Generating form fields for course:', course.name);
+      
+      const fields = generateFormFields(course, university);
+      setFormFields(fields);
+      
+      // Initialize form data with default values
+      const initialData = {
+        // Hidden metadata
+        targetCourse: course.name,
+        targetCourseId: course.id,
+        targetUniversity: university.name,
+        targetUniversityId: university.id,
+        degreeLevel: course.degree_type,
+        intakeSeason: course.intake_season,
+      };
+      
+      // Set empty values for all fields
+      fields.forEach(section => {
+        section.fields.forEach(field => {
+          initialData[field.id] = '';
+        });
       });
+      
+      setFormData(initialData);
       setErrors({});
+      
+      console.log('[DynamicForm] Generated', fields.length, 'sections');
     }
-  }, [isOpen]);
+  }, [isOpen, course, university]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
-
-  const handleFileChange = (e, field) => {
-    const file = e.target.files[0];
-    if (file && file.size > 5 * 1024 * 1024) {
-      alert("File size too large. Max 5MB.");
-      return;
-    }
-    setFormData((prev) => ({ ...prev, [field]: file }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+  const handleInputChange = (fieldId, value) => {
+    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    
+    // Clear error when user types
+    if (errors[fieldId]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldId];
+        return newErrors;
+      });
     }
   };
 
   const validateForm = () => {
-  const newErrors = {};
-
-  // Only validate email format if user enters something
-  if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
-    newErrors.email = "Invalid email";
-  }
-
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
-
+    const newErrors = {};
+    
+    formFields.forEach(section => {
+      section.fields.forEach(field => {
+        if (field.validation) {
+          const error = field.validation(formData[field.id]);
+          if (error) {
+            newErrors[field.id] = error;
+          }
+        }
+      });
+    });
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = (e) => {
-  e.preventDefault();
-  console.log("=== FORM SUBMIT ===");
-  console.log("University prop in modal:", university);
-  console.log("Form data:", formData);
-  
-  if (!university) {
-    console.error("No university in ApplicationFormModal!");
-    alert("Error: University information missing. Please try again.");
-    return;
-  }
-  
-  if (validateForm()) {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      // Scroll to first error
+      const firstErrorField = document.querySelector('.border-red-500');
+      if (firstErrorField) {
+        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      alert('Please fill in all required fields correctly.');
+      return;
+    }
+    
+    console.log('[DynamicForm] Form validated, submitting:', formData);
+    
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      console.log("Calling onSubmit with university:", university);
       onSubmit(formData, university);
     }, 1000);
-  }
-};
+  };
 
-  if (!isOpen) return null;
+  // Render different field types
+  const renderField = (field) => {
+    const hasError = errors[field.id];
+    const value = formData[field.id] || '';
+    
+    switch (field.type) {
+      case 'select':
+        return (
+          <div key={field.id} className="space-y-1">
+            <Label htmlFor={field.id} className="text-xs font-medium text-gray-700">
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </Label>
+            <select
+              id={field.id}
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
+              className={cn(
+                "w-full h-9 rounded-md border text-xs px-2 bg-white",
+                hasError ? "border-red-500" : "border-gray-300"
+              )}>
+              {field.options.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {hasError && <p className="text-red-500 text-[10px] mt-0.5">{hasError}</p>}
+          </div>
+        );
+        
+      case 'textarea':
+        return (
+          <div key={field.id} className="space-y-1">
+            <Label htmlFor={field.id} className="text-xs font-medium text-gray-700">
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </Label>
+            <Textarea
+              id={field.id}
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
+              rows={field.rows || 3}
+              placeholder={field.placeholder}
+              className={cn("border-gray-300 text-xs", hasError && "border-red-500")}
+            />
+            {field.showCharCount && (
+              <div className="flex justify-between text-[10px] text-gray-500">
+                <span>{value.length} / {field.minChars} minimum</span>
+                {hasError && <span className="text-red-500">{hasError}</span>}
+              </div>
+            )}
+            {!field.showCharCount && hasError && (
+              <p className="text-red-500 text-[10px] mt-0.5">{hasError}</p>
+            )}
+          </div>
+        );
+        
+      default: // text, email, tel, date, number, url
+        return (
+          <div key={field.id} className="space-y-1">
+            <Label htmlFor={field.id} className="text-xs font-medium text-gray-700">
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </Label>
+            <Input
+              id={field.id}
+              type={field.type}
+              value={value}
+              onChange={(e) => handleInputChange(field.id, e.target.value)}
+              placeholder={field.placeholder}
+              min={field.min}
+              max={field.max}
+              className={cn("border-gray-300 h-9 text-xs", hasError && "border-red-500")}
+            />
+            {hasError && <p className="text-red-500 text-[10px] mt-0.5">{hasError}</p>}
+          </div>
+        );
+    }
+  };
+
+  if (!isOpen || !course) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-lg">
-        {/* Modal Header */}
-        <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Building2 className="w-6 h-6" />
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3">
+      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col">
+        {/* Header - Compact */}
+        <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] rounded-t-lg flex-shrink-0">
+          <div className="flex items-center justify-between text-white">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-lg bg-white bg-opacity-20 flex items-center justify-center flex-shrink-0">
+                <FileText className="w-5 h-5" />
+              </div>
               <div>
-                <h2 className="text-lg font-bold">Apply to {university?.name}</h2>
+                <h2 className="text-lg font-bold leading-tight">{course.name}</h2>
+                <p className="text-xs text-white text-opacity-90">{university?.name}</p>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onClose} 
-              className="text-white hover:bg-white hover:bg-opacity-20"
-            >
-              <X className="w-4 h-4" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="text-white hover:bg-white hover:bg-opacity-20 h-8 w-8 p-0">
+              <X className="w-5 h-5" />
             </Button>
           </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Personal Information */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
-              <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">1</span>
-              Personal Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="fullName" className="text-xs font-semibold text-gray-700">Full Name</Label>
-                <Input 
-                  id="fullName" 
-                  name="fullName" 
-                  value={formData.fullName} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.fullName ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="email" className="text-xs font-semibold text-gray-700">Email</Label>
-                <Input 
-                  id="email" 
-                  name="email" 
-                  type="email" 
-                  value={formData.email} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.email ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="phone" className="text-xs font-semibold text-gray-700">Phone</Label>
-                <Input 
-                  id="phone" 
-                  name="phone" 
-                  value={formData.phone} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.phone ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="dateOfBirth" className="text-xs font-semibold text-gray-700">Date of Birth</Label>
-                <Input 
-                  id="dateOfBirth" 
-                  name="dateOfBirth" 
-                  type="date" 
-                  value={formData.dateOfBirth} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.dateOfBirth ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.dateOfBirth && <p className="text-red-500 text-xs">{errors.dateOfBirth}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="nationality" className="text-xs font-semibold text-gray-700">Nationality</Label>
-                <Input 
-                  id="nationality" 
-                  name="nationality" 
-                  value={formData.nationality} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.nationality ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.nationality && <p className="text-red-500 text-xs">{errors.nationality}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="passportNumber" className="text-xs font-semibold text-gray-700">Passport Number</Label>
-                <Input 
-                  id="passportNumber" 
-                  name="passportNumber" 
-                  value={formData.passportNumber} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.passportNumber ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.passportNumber && <p className="text-red-500 text-xs">{errors.passportNumber}</p>}
-              </div>
+        {/* Course Summary - Compact */}
+        <div className="p-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+          <div className="grid grid-cols-4 gap-3 text-xs">
+            <div>
+              <span className="text-blue-600 block mb-0.5">Degree Level:</span>
+              <p className="font-semibold text-blue-900 capitalize text-xs">{course.degree_type}</p>
+            </div>
+            <div>
+              <span className="text-blue-600 block mb-0.5">Duration:</span>
+              <p className="font-semibold text-blue-900 text-xs">{course.duration_years} years</p>
+            </div>
+            <div>
+              <span className="text-blue-600 block mb-0.5">Tuition Fee:</span>
+              <p className="font-semibold text-blue-900 text-xs">
+                {new Intl.NumberFormat('en-US', {
+                  style: 'currency',
+                  currency: course.currency || 'EUR',
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0
+                }).format(course.tuition_fee || 0)}
+              </p>
+            </div>
+            <div>
+              <span className="text-blue-600 block mb-0.5">Intake:</span>
+              <p className="font-semibold text-blue-900 text-xs">{course.intake_season}</p>
             </div>
           </div>
+        </div>
 
-          {/* Academic Information */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
-              <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">2</span>
-              Academic Information
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="tenthMarks" className="text-xs font-semibold text-gray-700">10th Marks</Label>
-                <Input 
-                  id="tenthMarks" 
-                  name="tenthMarks" 
-                  type="number" 
-                  step="0.01" 
-                  value={formData.tenthMarks} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.tenthMarks ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.tenthMarks && <p className="text-red-500 text-xs">{errors.tenthMarks}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="twelfthMarks" className="text-xs font-semibold text-gray-700">12th Marks</Label>
-                <Input 
-                  id="twelfthMarks" 
-                  name="twelfthMarks" 
-                  type="number" 
-                  step="0.01" 
-                  value={formData.twelfthMarks} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.twelfthMarks ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.twelfthMarks && <p className="text-red-500 text-xs">{errors.twelfthMarks}</p>}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="graduationMarks" className="text-xs font-semibold text-gray-700">Graduation Marks</Label>
-                <Input 
-                  id="graduationMarks" 
-                  name="graduationMarks" 
-                  type="number" 
-                  step="0.01" 
-                  value={formData.graduationMarks} 
-                  onChange={handleInputChange} 
-                  className={cn("h-9 text-sm", errors.graduationMarks ? "border-red-500" : "border-gray-200")} 
-                />
-                {errors.graduationMarks && <p className="text-red-500 text-xs">{errors.graduationMarks}</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Documents */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
-              <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">3</span>
-              Documents
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="apsCertificate" className="text-xs font-semibold text-gray-700">APS Certificate</Label>
-                <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center">
-                  <Input 
-                    id="apsCertificate" 
-                    type="file" 
-                    accept=".pdf,.doc,.docx" 
-                    onChange={(e) => handleFileChange(e, "apsCertificate")} 
-                    className={cn("text-sm", errors.apsCertificate ? "border-red-500" : "")} 
-                  />
-                  <p className="text-xs text-gray-500 mt-1">PDF/DOC (Max 5MB)</p>
-                </div>
-                {errors.apsCertificate && <p className="text-red-500 text-xs">{errors.apsCertificate}</p>}
-                {formData.apsCertificate && (
-                  <div className="flex items-center text-xs text-green-700">
-                    <Check className="w-3 h-3 text-green-600 mr-1" />
-                    {formData.apsCertificate.name}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="lomFile" className="text-xs font-semibold text-gray-700">Letter of Motivation</Label>
-                <div className="border border-dashed border-red-300 rounded-lg p-3 text-center bg-red-50">
-                  <Input 
-                    id="lomFile" 
-                    type="file" 
-                    accept=".pdf,.doc,.docx" 
-                    onChange={(e) => handleFileChange(e, "lomFile")} 
-                    className={cn("text-sm", errors.lomFile ? "border-red-500" : "")} 
-                  />
-                  <p className="text-xs text-red-600 mt-1">Required</p>
-                </div>
-                {errors.lomFile && <p className="text-red-500 text-xs">{errors.lomFile}</p>}
-                {formData.lomFile && (
-                  <div className="flex items-center text-xs text-green-700">
-                    <Check className="w-3 h-3 text-green-600 mr-1" />
-                    {formData.lomFile.name}
-                  </div>
+        {/* Requirements Notice - Compact */}
+        <div className="p-3 bg-yellow-50 border-b border-yellow-100 flex-shrink-0">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs">
+              <h4 className="font-semibold text-yellow-900 mb-1">Minimum Requirements</h4>
+              <div className="text-yellow-700 space-y-0.5">
+                <p>• Min GPA: <strong>{course.min_gpa || 'N/A'}</strong> | Min IELTS: <strong>{course.min_ielts || 'N/A'}</strong></p>
+                {(course.degree_type === 'masters' || course.degree_type === 'phd') && (
+                  <p>• Bachelor's degree required</p>
                 )}
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Additional Information */}
-          <div className="space-y-1">
-            <Label htmlFor="additionalInfo" className="text-xs font-semibold text-gray-700">Additional Information</Label>
-            <Textarea 
-              id="additionalInfo" 
-              name="additionalInfo" 
-              value={formData.additionalInfo} 
-              onChange={handleInputChange} 
-              rows={3} 
-              className="text-sm border-gray-200" 
-              placeholder="Optional information..."
-            />
-          </div>
+        {/* Dynamic Form Sections - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {formFields.map((section) => (
+              <div key={section.sectionNumber} className="space-y-3">
+                <h3 className="text-sm font-bold text-[#2C3539] flex items-center pb-2 border-b border-gray-200">
+                  <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs font-bold">
+                    {section.sectionNumber}
+                  </span>
+                  {section.section}
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {section.fields.map((field) => {
+                    // Full width for textareas and certain fields
+                    const isFullWidth = field.type === 'textarea' || 
+                                       field.id === 'email' ||
+                                       field.id === 'portfolioLink' ||
+                                       field.id === 'auditionLink';
+                    
+                    return (
+                      <div key={field.id} className={isFullWidth ? "md:col-span-2" : ""}>
+                        {renderField(field)}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </form>
+        </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose} 
-              className="px-4 py-2 text-xs" 
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit" 
-              className="px-4 py-2 bg-primary text-white text-xs" 
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4 mr-1" />
-                  Submit
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
+        {/* Footer - Compact & Sticky */}
+        <div className="p-3 border-t border-gray-200 bg-white flex justify-between items-center gap-3 rounded-b-lg flex-shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 h-9 text-xs">
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="px-5 py-2 h-9 bg-[#E08D3C] hover:bg-[#c77a32] text-white text-xs font-semibold">
+            {loading ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                Processing...
+              </>
+            ) : (
+              <>
+                Continue to Payment
+                <ChevronRight className="w-3 h-3 ml-1" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );
 };
+// ============ END DYNAMIC FORM ============
 
 // Payment Modal
 const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
@@ -1018,8 +1713,10 @@ export default function Universities() {
   const [error, setError] = useState(null);
 
   // Simple favorites (keep using in-memory storage for React artifact)
+  // Favorites from API
   const [favorites, setFavorites] = useState([]);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -1075,30 +1772,35 @@ useEffect(() => {
   }, []); // Only runs once on mount
 
   // Load data when filters change (debounced to avoid excessive calls)
-  useEffect(() => {
-    // Skip the initial render (already handled by first useEffect)
-    const timer = setTimeout(() => {
-      loadData();
-    }, 300); // 300ms debounce
+  // Load data when filters change (debounced to avoid excessive calls)
+useEffect(() => {
+  // Skip the initial render (already handled by first useEffect)
+  const timer = setTimeout(() => {
+    if (showFavorites) {
+      loadFavorites(); // Load favorites when in wishlist view
+    } else {
+      loadData(); // Load universities when in main view
+    }
+  }, 300); // 300ms debounce
 
-    return () => clearTimeout(timer);
-  }, [
-    selectedCountry,
-    searchQuery,
-    selectedCity,
-    selectedState,
-    selectedCourseFilter,
-    selectedLanguage,
-    selectedDegreeType,
-    selectedIntakeSeason,
-    tuitionRange,
-    gpaRange,
-    universityType,        // ADD THIS
-  institutionType,       // ADD THIS
-  universityRanking,     // ADD THIS
-  scholarshipsOnly,  
-  ]);
-
+  return () => clearTimeout(timer);
+}, [
+  selectedCountry,
+  searchQuery,
+  selectedCity,
+  selectedState,
+  selectedCourseFilter,
+  selectedLanguage,
+  selectedDegreeType,
+  selectedIntakeSeason,
+  tuitionRange,
+  gpaRange,
+  universityType,
+  institutionType,
+  universityRanking,
+  scholarshipsOnly,
+  showFavorites, // ADD THIS - reload when toggling wishlist
+]);
   // Load universities only
  const loadData = async () => {
   try {
@@ -1266,26 +1968,132 @@ useEffect(() => {
   }
 };
 
-  // Add to favorites
-  const addToFavorites = (universityId) => {
-    const university = universities.find((uni) => uni.id === universityId);
-
-    if (university && !favorites.some((fav) => fav.id === universityId)) {
-      const newFavorites = [...favorites, university];
-      setFavorites(newFavorites);
+// Load favorite courses from API
+const loadFavorites = async () => {
+  try {
+    setFavoritesLoading(true);
+    console.log('[Universities] Loading favorite courses from API...');
+    
+    const response = await getAllCourses();
+    
+    // Extract courses array
+    let coursesArray = [];
+    if (Array.isArray(response)) {
+      coursesArray = response;
+    } else if (response?.data && Array.isArray(response.data)) {
+      coursesArray = response.data;
     }
-  };
+    
+    // Filter only favorite courses
+    const favoriteCourses = coursesArray.filter(course => course.isFavorite === true);
+    
+    console.log('[Universities] Found', favoriteCourses.length, 'favorite courses');
+    
+    // Group by university
+    const universitiesWithFavorites = {};
+    
+    favoriteCourses.forEach(course => {
+      const uniId = course.universityId;
+      
+      if (!universitiesWithFavorites[uniId]) {
+        universitiesWithFavorites[uniId] = {
+          id: uniId,
+          name: course.universityName,
+          code: course.universityCode,
+          country: course.universityCountry,
+          city: course.universityCountry, // Use country as city fallback
+          image_url: null,
+          total_courses: 0,
+          courses: []
+        };
+      }
+      
+      universitiesWithFavorites[uniId].courses.push(course);
+      universitiesWithFavorites[uniId].total_courses++;
+    });
+    
+    // Convert to array
+    const favoritesArray = Object.values(universitiesWithFavorites);
+    
+    console.log('[Universities] Grouped into', favoritesArray.length, 'universities');
+    
+    // Calculate stats for favorite universities
+    calculateUniversityStats(favoritesArray);
+    
+    setFavorites(favoritesArray);
+    
+  } catch (error) {
+    console.error('[Universities] Error loading favorites:', error);
+    setFavorites([]);
+  } finally {
+    setFavoritesLoading(false);
+  }
+};
 
-  // Remove from favorites
-  const removeFromFavorites = (universityId) => {
-    const newFavorites = favorites.filter((fav) => fav.id !== universityId);
-    setFavorites(newFavorites);
-  };
+  // Add to favorites
+  // Add to favorites (API integrated)
+const addToFavorites = async (universityId) => {
+  try {
+    const university = universities.find((uni) => uni.id === universityId);
+    
+    if (!university) {
+      console.error('University not found');
+      return;
+    }
+    
+    // Get first course from this university to add to favorites
+    if (university.courses && university.courses.length > 0) {
+      const firstCourse = university.courses[0];
+      console.log(`[Favorites] Adding course ${firstCourse.id} to favorites`);
+      
+      await addCourseToFavorites(firstCourse.id);
+      
+      // Reload favorites
+      await loadFavorites();
+      
+      console.log('[Favorites] ✅ Added to favorites');
+    } else {
+      alert('No courses available to add to favorites');
+    }
+  } catch (error) {
+    console.error('[Favorites] Error adding to favorites:', error);
+    alert('Failed to add to favorites. Please try again.');
+  }
+};
 
-  // Check if university is in favorites
-  const isFavorite = (universityId) => {
-    return favorites.some((fav) => fav.id === universityId);
-  };
+// Remove from favorites (API integrated)
+const removeFromFavorites = async (universityId) => {
+  try {
+    const university = favorites.find((fav) => fav.id === universityId);
+    
+    if (!university) {
+      console.error('University not found in favorites');
+      return;
+    }
+    
+    // Remove all courses from this university from favorites
+    const courseIds = university.courses.map(course => course.id);
+    
+    console.log(`[Favorites] Removing ${courseIds.length} courses from favorites`);
+    
+    for (const courseId of courseIds) {
+      await removeCourseFromFavorites(courseId);
+    }
+    
+    // Reload favorites
+    await loadFavorites();
+    
+    console.log('[Favorites] ✅ Removed from favorites');
+  } catch (error) {
+    console.error('[Favorites] Error removing from favorites:', error);
+    alert('Failed to remove from favorites. Please try again.');
+  }
+};
+
+// Check if university is in favorites
+const isFavorite = (universityId) => {
+  return favorites.some((fav) => fav.id === universityId);
+};
 
   // Handle form submit - opens payment
   const handleFormSubmit = (formData, university) => {
@@ -1509,21 +2317,21 @@ const handlePaymentSuccess = async (university) => {
     const stats = universityStats[university.id] || {};
 
     const handleHeartClick = async () => {
-      if (heartLoading) return;
+  if (heartLoading) return;
 
-      setHeartLoading(true);
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        if (isFavorite(university.id)) {
-          removeFromFavorites(university.id);
-        } else {
-          addToFavorites(university.id);
-        }
-      } finally {
-        setHeartLoading(false);
-      }
-    };
+  setHeartLoading(true);
+  try {
+    if (isFavorite(university.id)) {
+      await removeFromFavorites(university.id);
+    } else {
+      await addToFavorites(university.id);
+    }
+  } catch (error) {
+    console.error('Error toggling favorite:', error);
+  } finally {
+    setHeartLoading(false);
+  }
+};
 
     const handleLearnMore = () => {
       setSelectedUniversity(university);
@@ -1966,23 +2774,30 @@ const handlePaymentSuccess = async (university) => {
             </motion.div>
           ))
         ) : showFavorites ? (
-          <div className="col-span-full text-center py-16">
-            <div className="max-w-md mx-auto">
-              <Heart className="w-20 h-20 text-gray-300 mx-auto mb-6" />
-              <h3 className="text-2xl font-bold text-gray-600 mb-4">
-                No favorites yet
-              </h3>
-              <p className="text-gray-500 mb-8 text-lg leading-relaxed">
-                Start exploring universities and save your favorites by clicking
-                the heart icon on any university card!
-              </p>
-              <Button
-                onClick={() => setShowFavorites(false)}
-                className="bg-[#E08D3C] hover:bg-[#c77a32] text-white font-bold px-8 py-3 rounded-lg text-lg">
-                Browse Universities
-              </Button>
-            </div>
-          </div>
+  favoritesLoading ? (
+    <div className="col-span-full flex justify-center items-center py-12">
+      <Loader2 className="h-8 w-8 animate-spin text-[#E08D3C]" />
+      <span className="ml-2 text-gray-600">Loading your wishlist...</span>
+    </div>
+  ) : (
+    <div className="col-span-full text-center py-16">
+      <div className="max-w-md mx-auto">
+        <Heart className="w-20 h-20 text-gray-300 mx-auto mb-6" />
+        <h3 className="text-2xl font-bold text-gray-600 mb-4">
+          No favorites yet
+        </h3>
+        <p className="text-gray-500 mb-8 text-lg leading-relaxed">
+          Start exploring universities and save your favorites by clicking
+          the heart icon on any university card or course!
+        </p>
+        <Button
+          onClick={() => setShowFavorites(false)}
+          className="bg-[#E08D3C] hover:bg-[#c77a32] text-white font-bold px-8 py-3 rounded-lg text-lg">
+          Browse Universities
+        </Button>
+      </div>
+    </div>
+  )
         ) : (
           <div className="col-span-full text-center py-12">
             <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -2017,14 +2832,13 @@ const handlePaymentSuccess = async (university) => {
   setIsFormModalOpen={setIsFormModalOpen}
 />
 
-{/* Application Form Modal - Opens Second */}
-{/* Application Form Modal - Opens Second */}
-<ApplicationFormModal
+{/* Dynamic Application Form Modal - Opens Second */}
+<DynamicApplicationFormModal
   university={selectedUniversity}
+  course={selectedCourse}
   isOpen={isFormModalOpen}
   onClose={() => {
     setIsFormModalOpen(false);
-    // Don't clear university/course here - we need them for payment
   }}
   onSubmit={handleFormSubmit}
 />
