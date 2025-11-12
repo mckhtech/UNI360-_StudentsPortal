@@ -56,7 +56,8 @@ export default function Resources() {
   const categories = [
     { id: 'all', label: 'All Resources', count: 24 },
     { id: 'language', label: 'Language Prep', count: 3 },
-    { id: 'services', label: 'Services', count: 4 },
+    { id: 'services', label: 'Services', count: 5 },
+    { id: "insurance", label: "Insurance", count: 2 },
     { id: 'guides', label: 'Study Guides', count: 6 },
     { id: 'checklists', label: 'Checklists', count: 4 },
     { id: 'scholarships', label: 'Scholarships', count: 3 },
@@ -246,7 +247,44 @@ export default function Resources() {
       featured: true,
       isService: true,
       redirectLink: 'https://your-flight-booking-link.com'
-    }
+    },
+    {
+  id: 17,
+  title: "Health Insurance",
+  description: "Compare affordable health insurance options for international students in Germany and the UK.",
+  category: "insurance",
+  type: "Service",
+  readTime: "Quick Info",
+  tags: ["Health", "Insurance", "Germany", "UK"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://www.policybazaar.com/health-insurance/health-insurance-india/"
+},
+{
+  id: 18,
+  title: "Travel Insurance",
+  description: "Get travel insurance coverage for your flight, baggage, and medical emergencies while traveling abroad.",
+  category: "insurance",
+  type: "Service",
+  readTime: "Quick Info",
+  tags: ["Travel", "Insurance", "International"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://www.policybazaar.com/travel-insurance/"
+},
+{
+  id: 19,
+  title: "Flight Booking",
+  description: "Start your study abroad journey smoothly - book verified student friendly flights with fexible baggage and date options.",
+  category: "services",
+  type: "Service",
+  readTime: "Quick Info",
+  tags : ["Flight", "International", "Booking"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://www.makemytrip.com/flights/?cmp=SEM|D|DF|G|Brand|Brand-BrandExact_DT|B_M_Makemytrip_Search_Exact|RSA&cmpdata=SEM|MMT|BRAND&gad_source=1&gad_campaignid=13978388&gbraid=0AAAAAD5Az1RrxH4JPvPXP8-sWtY56PJRV&gclid=CjwKCAiA2svIBhB-EiwARWDPjh5KucHRTzDgk6qOsaQGuFgiKjJTbPKUP2K0lsyqdMp9A_a0we3qoRoC7C4QAvD_BwE"
+}
+
     
   ];
 

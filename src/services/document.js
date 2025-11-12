@@ -2,7 +2,7 @@
 import { handleApiError } from './utils.js';
 import { makeAuthenticatedRequest, getAuthHeaders } from './tokenService.js';
 
-const BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/student`;
+const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 /**
  * API Helper function to handle requests with proper headers and error handling
@@ -372,6 +372,24 @@ export const uploadGermanyDocuments = async (documentsData) => {
 };
 
 /**
+ * Get view URL for a document
+ */
+export const getDocumentViewUrl = async (documentId) => {
+  try {
+    if (!documentId) throw new Error('document_id is required');
+    
+    const response = await apiRequest(`/documents/${documentId}/view-url/`, {
+      method: 'GET',
+    });
+    
+    return response;
+  } catch (error) {
+    console.error('Get document view URL error:', error);
+    throw handleApiError(error);
+  }
+};
+
+/**
  * Download document
  */
 export const downloadDocumentById = async (documentId) => {
@@ -543,6 +561,7 @@ export default {
 
   // Downloads
   downloadDocumentById,
+   getDocumentViewUrl,
 
   // Validation helpers
   validateFileType,
