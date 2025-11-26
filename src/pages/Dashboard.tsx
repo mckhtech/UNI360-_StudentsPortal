@@ -345,10 +345,10 @@ export default function Dashboard() {
       >
         <div className="absolute inset-0 opacity-20">
           <img 
-            src={heroImage} 
-            alt="Students studying" 
-            className="w-full h-full object-cover"
-          />
+  src="/assets/hero-image.jpg" 
+  alt="Students studying" 
+  className="w-full h-full object-cover"
+/>
         </div>
         <div className="relative z-10 max-w-2xl">
           <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-3 sm:mb-4">
