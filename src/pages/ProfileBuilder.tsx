@@ -1072,7 +1072,7 @@ export default function ProfileBuilder() {
   };
 
   const renderStepContent = () => {
-    // Safety check to ensure formData is properly structured
+  
     if (
       !formData ||
       !formData.personal ||

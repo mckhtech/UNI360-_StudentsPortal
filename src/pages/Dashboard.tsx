@@ -142,7 +142,7 @@ try {
   const applicationsResponse = await getStudentApplications();
   console.log('[Dashboard] Applications response:', applicationsResponse);
   
-  // Handle different response structures (same as Applications.tsx)
+  
   let apps = [];
   if (applicationsResponse?.data?.applications) {
     apps = applicationsResponse.data.applications;

@@ -1662,11 +1662,11 @@ const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
             <div className="space-y-1 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-600">Application Fee</span>
-                <span className="font-medium">€50.00</span>
+                <span className="font-medium">€60.00</span>
               </div>
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
-                <span className="text-[#E08D3C]">€50.00</span>
+                <span className="text-[#E08D3C]">€60.00</span>
               </div>
             </div>
           </div>

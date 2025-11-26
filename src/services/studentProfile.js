@@ -51,7 +51,6 @@ const apiRequest = async (endpoint, options = {}) => {
   }
 };
 
-// ==================== PROFILE ENDPOINTS ====================
 
 /**
  * Get student profile

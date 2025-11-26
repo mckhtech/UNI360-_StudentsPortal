@@ -1063,7 +1063,7 @@ const IconComp = conf.icon;
             </div>
             <div>
               <h2 className="text-2xl font-bold">Submit Application</h2>
-              <p className="text-white text-opacity-90">Review and confirm your submission</p>
+              <p className="text-white text-opacity-90">Review and Confirm your submission</p>
             </div>
           </div>
           <button
