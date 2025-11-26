@@ -449,9 +449,7 @@ const handleFavoriteClick = async (courseId, isFavorite) => {
                       )}
 
                       <div className="flex gap-2 pt-2">
-                        <Button size="sm" variant="outline" className="flex-1">
-                          View Details
-                        </Button>
+                        
                         <Button
                           size="sm"
                           className="flex-1 bg-[#2C3539] hover:bg-[#1e2529]"
@@ -1662,11 +1660,11 @@ const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
             <div className="space-y-1 text-xs">
               <div className="flex justify-between">
                 <span className="text-gray-600">Application Fee</span>
-                <span className="font-medium">€60.00</span>
+                <span className="font-medium">€50.00</span>
               </div>
               <div className="flex justify-between font-semibold">
                 <span>Total</span>
-                <span className="text-[#E08D3C]">€60.00</span>
+                <span className="text-[#E08D3C]">€50.00</span>
               </div>
             </div>
           </div>
@@ -2217,21 +2215,18 @@ const handlePaymentSuccess = async (university) => {
 
     console.log('✅ Application successfully created with ID:', applicationId);
 
-    // Close modals
-    setIsPaymentModalOpen(false);
-    setSelectedUniversity(null);
-    setSelectedCourse(null);
-    setIsFormModalOpen(false);
-    
-    // Success message
-    const refNumber = response?.data?.referenceNumber || response?.referenceNumber || 'N/A';
-    alert(`🎉 Application submitted successfully!\n\nReference: ${refNumber}\n\nRedirecting to Applications page...`);
-    
-    // Wait before redirect
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Navigate to applications
-    navigate("/applications");
+// Store reference number for display on applications page (optional)
+const refNumber = response?.data?.referenceNumber || response?.referenceNumber || 'N/A';
+sessionStorage.setItem('lastSubmissionRef', refNumber);
+
+// Close modals
+setIsPaymentModalOpen(false);
+setSelectedUniversity(null);
+setSelectedCourse(null);
+setIsFormModalOpen(false);
+
+// Redirect immediately to applications page
+navigate("/applications");
     
   } catch (error) {
     console.error('❌ Error creating application:', error);
@@ -2390,26 +2385,7 @@ const handlePaymentSuccess = async (university) => {
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              className={`p-1 rounded-lg transition-all duration-200 ${
-                isFavorite(university.id)
-                  ? "text-red-500 hover:text-red-600 hover:bg-red-50"
-                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
-              } ${heartLoading ? "opacity-50 cursor-not-allowed" : ""}`}
-              onClick={handleHeartClick}
-              disabled={heartLoading}>
-              {heartLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Heart
-                  className={`w-4 h-4 ${
-                    isFavorite(university.id) ? "fill-current" : ""
-                  }`}
-                />
-              )}
-            </Button>
+            
           </div>
 
           <div className="flex gap-2 mb-3">

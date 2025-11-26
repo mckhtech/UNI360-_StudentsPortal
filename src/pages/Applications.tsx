@@ -180,7 +180,7 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-gray-700">Intake</label>
-                  <p className="text-gray-900">{application.intakeTerm || 'Not specified'}</p>
+                  <p className="text-gray-900">{application.intakeTerm || ''}</p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-gray-700">Submitted Date</label>
@@ -196,7 +196,7 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-gray-700">Deadline</label>
-                  <p className="text-gray-900">{application.deadline || 'TBA'}</p>
+                  <p className="text-gray-900">{application.deadline || ''}</p>
                 </div>
               </div>
 
@@ -409,6 +409,10 @@ export default function Applications() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 const [submittingAppId, setSubmittingAppId] = useState(null);
+const [submitSuccessModal, setSubmitSuccessModal] = useState({ isOpen: false, data: null });
+const [allCountriesCount, setAllCountriesCount] = useState(0);
+const [germanyCount, setGermanyCount] = useState(0);
+const [ukCount, setUkCount] = useState(0);
 const [submitFormData, setSubmitFormData] = useState({
   confirmationStatement: "",
   agreeToTerms: false,
@@ -427,140 +431,175 @@ const [submitFormData, setSubmitFormData] = useState({
     return () => clearInterval(interval);
   }, []);
 
+  // Add this useEffect after the existing one
+useEffect(() => {
+  loadApplications();
+}, [selectedCountry]);
+
+
+
   const loadApplications = async (silent = false) => {
-    if (!silent) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
+  if (!silent) {
+    setLoading(true);
+  } else {
+    setRefreshing(true);
+  }
+  setError("");
+
+  try {
+    // Build country code parameter based on selected tab
+    const countryCode = selectedCountry === "ALL" ? undefined : selectedCountry;
+    
+    console.log('=== FETCHING APPLICATIONS FROM API ===');
+    console.log('Country filter:', countryCode);
+    
+    const response = await getStudentApplications(countryCode);
+    console.log('Raw applications response:', response);
+    
+    let apps = [];
+    
+    // Handle different response structures
+    if (response?.data?.applications) {
+      apps = response.data.applications;
+    } else if (Array.isArray(response?.data)) {
+      apps = response.data;
+    } else if (Array.isArray(response)) {
+      apps = response;
+    } else if (response?.applications) {
+      apps = response.applications;
     }
-    setError("");
 
-    try {
-      console.log('=== FETCHING APPLICATIONS FROM API ===');
-      const response = await getStudentApplications();
-      console.log('Raw applications response:', response);
-      
-      let apps = [];
-      
-      // Handle different response structures
-      if (response?.data?.applications) {
-        apps = response.data.applications;
-      } else if (Array.isArray(response?.data)) {
-        apps = response.data;
-      } else if (Array.isArray(response)) {
-        apps = response;
-      } else if (response?.applications) {
-        apps = response.applications;
-      }
+    console.log('Parsed applications:', apps);
+    console.log('Total applications found:', apps.length);
 
-      console.log('Parsed applications:', apps);
-      console.log('Total applications found:', apps.length);
+    // Enrich applications with university data
+    const enriched = await Promise.all(
+      apps.map(async (app: any) => {
+        const universityId = app.targetUniversityId || app.target_university_id || app.university;
+        
+        console.log(`Enriching application ${app.id}:`, { universityId });
+        
+        try {
+          const universityData = universityId 
+            ? await universityAPI.getUniversityById(universityId).catch(err => {
+                console.warn('Failed to fetch university:', err);
+                return null;
+              }) 
+            : null;
 
-      // Enrich applications with university data
-      const enriched = await Promise.all(
-        apps.map(async (app: any) => {
-          const universityId = app.targetUniversityId || app.target_university_id || app.university;
-          
-          console.log(`Enriching application ${app.id}:`, { universityId });
-          
-          try {
-            const universityData = universityId 
-              ? await universityAPI.getUniversityById(universityId).catch(err => {
-                  console.warn('Failed to fetch university:', err);
-                  return null;
-                }) 
-              : null;
-
-            // Format intake term
-            let formattedIntake = app.intakeTerm || app.intake_term || '';
-if (formattedIntake) {
-  // Handle SUMMER_2026, summer_2026, Summer 2026, etc.
-  formattedIntake = formattedIntake
-    .replace(/_/g, ' ')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
-}
-
-            // Format deadline
-            let formattedDeadline = "TBA";
-            if (app.workflowProgress?.estimatedCompletion) {
-              try {
-                const date = new Date(app.workflowProgress.estimatedCompletion);
-                formattedDeadline = date.toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
-                });
-              } catch (e) {
-                console.warn('Error parsing deadline:', e);
-              }
-            } else if (app.deadline) {
-              try {
-                const date = new Date(app.deadline);
-                formattedDeadline = date.toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
-                });
-              } catch (e) {
-                console.warn('Error parsing deadline:', e);
-              }
-            }
-
-            return {
-              ...app,
-              id: app.id,
-              universityName: app.universityName || app.university_name || universityData?.name || "University",
-programName: app.programName || app.program_name || app.targetCourseName || app.target_course_name || "Program",
-              intakeTerm: formattedIntake,
-              status: app.status || 'DRAFT',
-              completionPercentage: app.completionPercentage || app.completion_percentage || 0,
-              referenceNumber: app.referenceNumber || app.reference_number || app.refNumber || "Pending",
-              universityData,
-              adminName: "Admissions Office",
-              adminEmail: universityData?.contact_email || "admissions@university.edu",
-              deadline: formattedDeadline,
-              submittedAt: app.submittedAt || app.submitted_at,
-              city: universityData?.city || "",
-              country: universityData?.country || "",
-              workflowProgress: app.workflowProgress || app.workflow_progress || {
-  estimatedCompletion: app.deadline || app.estimated_completion,
-  pendingTasks: app.pending_tasks || 0,
-  requiresStudentAction: app.requires_student_action || false,
-},
-            };
-          } catch (enrichErr) {
-            console.warn('Error enriching application:', enrichErr);
-            return {
-              ...app,
-              id: app.id,
-              universityName: app.universityName || "University",
-              programName: app.programName || "Program",
-              status: app.status || 'DRAFT',
-              completionPercentage: app.completionPercentage || 0,
-              universityData: null,
-              adminName: "Admissions Office",
-              adminEmail: "admissions@university.edu",
-              deadline: "TBA",
-              city: "",
-              country: "",
-            };
+          // Format intake term
+          let formattedIntake = app.intakeTerm || app.intake_term || '';
+          if (formattedIntake) {
+            // Handle SUMMER_2026, summer_2026, Summer 2026, etc.
+            formattedIntake = formattedIntake
+              .replace(/_/g, ' ')
+              .split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
           }
-        })
-      );
 
-      console.log('✅ Enriched applications:', enriched);
-      setApplications(enriched);
+          // Format deadline
+          let formattedDeadline = null;
+          if (app.workflowProgress?.estimatedCompletion) {
+            try {
+              const date = new Date(app.workflowProgress.estimatedCompletion);
+              formattedDeadline = date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+              });
+            } catch (e) {
+              console.warn('Error parsing deadline:', e);
+            }
+          } else if (app.deadline) {
+            try {
+              const date = new Date(app.deadline);
+              formattedDeadline = date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+              });
+            } catch (e) {
+              console.warn('Error parsing deadline:', e);
+            }
+          }
+
+          return {
+            ...app,
+            id: app.id,
+            universityName: app.universityName || app.university_name || universityData?.name || "University",
+            programName: app.programName || app.program_name || app.targetCourseName || app.target_course_name || "Program",
+            intakeTerm: formattedIntake,
+            status: app.status || 'DRAFT',
+            completionPercentage: app.completionPercentage || app.completion_percentage || 0,
+            referenceNumber: app.referenceNumber || app.reference_number || app.refNumber || null,
+            universityData,
+            adminName: universityData?.admin_name || null,
+            adminEmail: universityData?.contact_email || null,
+            deadline: formattedDeadline === "TBA" ? null : formattedDeadline,
+            submittedAt: app.submittedAt || app.submitted_at,
+            city: universityData?.city || "",
+            country: universityData?.country || "",
+            workflowProgress: app.workflowProgress || app.workflow_progress || {
+              estimatedCompletion: app.deadline || app.estimated_completion,
+              pendingTasks: app.pending_tasks || 0,
+              requiresStudentAction: app.requires_student_action || false,
+            },
+          };
+        } catch (enrichErr) {
+          console.warn('Error enriching application:', enrichErr);
+          return {
+            ...app,
+            id: app.id,
+            universityName: app.universityName || "University",
+            programName: app.programName || "Program",
+            status: app.status || 'DRAFT',
+            completionPercentage: app.completionPercentage || 0,
+            universityData: null,
+            adminName: "Admissions Office",
+            adminEmail: "admissions@university.edu",
+            deadline: "TBA",
+            city: "",
+            country: "",
+          };
+        }
+      })
+    );
+
+    console.log('✅ Enriched applications:', enriched);
+    setApplications(enriched);
+    
+    // Update counts based on current filter
+    if (countryCode === undefined) {
+      // ALL countries
+      setAllCountriesCount(enriched.length);
       
-    } catch (err) {
-      console.error("❌ Error loading applications:", err);
-      setError("Failed to load applications. Please check your connection.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      // Silently fetch Germany and UK counts for tab badges
+      try {
+        const deResponse = await getStudentApplications('DE');
+        const deApps = Array.isArray(deResponse) ? deResponse : (deResponse.data?.applications || deResponse.data || []);
+        setGermanyCount(deApps.length);
+        
+        const ukResponse = await getStudentApplications('UK');
+        const ukApps = Array.isArray(ukResponse) ? ukResponse : (ukResponse.data?.applications || ukResponse.data || []);
+        setUkCount(ukApps.length);
+      } catch (err) {
+        console.warn('Failed to fetch country-specific counts:', err);
+      }
+    } else if (countryCode === 'DE') {
+      setGermanyCount(enriched.length);
+    } else if (countryCode === 'UK') {
+      setUkCount(enriched.length);
     }
-  };
+    
+  } catch (err) {
+    console.error("❌ Error loading applications:", err);
+    setError("Failed to load applications. Please check your connection.");
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+};
 
   const handleNewApplication = () => {
     navigate("/universities");
@@ -625,9 +664,16 @@ const handleSubmitApplication = async () => {
     console.log('Submit response:', response);
     
     // Show success message
-    const data = response?.data || response;
-    alert(`✅ Application submitted successfully!\n\nReference Number: ${data.referenceNumber || 'N/A'}\nStatus: ${data.status || 'Submitted'}\n\n⚠️ Please keep your reference number safe for tracking.`);
-    
+    // Show success message
+const data = response?.data || response;
+setSubmitSuccessModal({ 
+  isOpen: true, 
+  data: {
+    referenceNumber: data.referenceNumber || 'N/A',
+    status: data.status || 'Submitted',
+    universityName: applications.find(a => a.id === submittingAppId)?.universityName || 'University'
+  }
+});
     // Reset form and close modal
     setIsSubmitModalOpen(false);
     setSubmittingAppId(null);
@@ -657,7 +703,10 @@ const handleSubmitApplication = async () => {
       userMessage = 'Invalid request. Please ensure all required fields are completed.';
     }
     
-    alert(`❌ Submission Failed\n\n${userMessage}\n\nPlease refresh the page and try again.`);
+    setSubmitSuccessModal({ 
+  isOpen: true, 
+  data: { error: userMessage }
+});
   } finally {
     setLoading(false);
   }
@@ -667,20 +716,14 @@ const openSubmitModal = (appId: string) => {
   setSubmittingAppId(appId);
   setIsSubmitModalOpen(true);
   setSubmitFormData({
-    confirmationStatement: "I confirm that all information provided in this application is accurate and complete to the best of my knowledge.",
+    confirmationStatement: "",
     agreeToTerms: false,
     additionalNotes: ""
   });
 };
 
   // Filter applications by selected country
-  const filteredApplications = selectedCountry === "ALL" 
-    ? applications 
-    : applications.filter(app => {
-        const appCountry = normalizeApiCountry(app.country || app.universityData?.country);
-        const targetCountry = selectedCountry === "DE" ? "germany" : "united_kingdom";
-        return appCountry === targetCountry;
-      });
+  const filteredApplications = applications;
 
   if (loading && !refreshing) {
     return (
@@ -748,13 +791,7 @@ const openSubmitModal = (appId: string) => {
 
         <div className="flex gap-2">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            <button
-              className="bg-white border-2 border-[#E08D3C] text-[#E08D3C] px-4 py-2 rounded-lg font-medium hover:bg-[#E08D3C] hover:text-white transition-all duration-200 flex items-center gap-2"
-              onClick={handleRefresh}
-              disabled={refreshing}>
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+          
           </motion.div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <button
@@ -765,214 +802,6 @@ const openSubmitModal = (appId: string) => {
             </button>
           </motion.div>
         </div>
-      </motion.div>
-
-      {/* Country Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        <button
-          onClick={() => setSelectedCountry("ALL")}
-          className={`px-6 py-3 font-medium transition-all ${
-            selectedCountry === "ALL"
-              ? "border-b-2 border-[#E08D3C] text-[#E08D3C]"
-              : "text-gray-600 hover:text-[#E08D3C]"
-          }`}>
-          All Countries
-          <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full">
-            {applications.length}
-          </span>
-        </button>
-        <button
-          onClick={() => setSelectedCountry("DE")}
-          className={`px-6 py-3 font-medium transition-all ${
-            selectedCountry === "DE"
-              ? "border-b-2 border-[#E08D3C] text-[#E08D3C]"
-              : "text-gray-600 hover:text-[#E08D3C]"
-          }`}>
-          Germany
-          <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full">
-            {applications.filter(a => 
-              normalizeApiCountry(a.country || a.universityData?.country) === "germany"
-            ).length}
-          </span>
-        </button>
-        <button
-          onClick={() => setSelectedCountry("UK")}
-          className={`px-6 py-3 font-medium transition-all ${
-            selectedCountry === "UK"
-              ? "border-b-2 border-[#E08D3C] text-[#E08D3C]"
-              : "text-gray-600 hover:text-[#E08D3C]"
-          }`}>
-          United Kingdom
-          <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full">
-            {applications.filter(a => 
-              normalizeApiCountry(a.country || a.universityData?.country) === "united_kingdom"
-            ).length}
-          </span>
-        </button>
-      </div>
-
-      {/* Applications List */}
-      <motion.div className="space-y-4" variants={container} initial="hidden" animate="show">
-        {filteredApplications.length > 0 ? (
-  filteredApplications.map((application) => {
-    const conf = getStatusConfig(application.status);
-const IconComp = conf.icon;
-    const progress = getProgress(application.completionPercentage);
-
-            return (
-              <motion.div key={application.id} variants={item} whileHover={{ y: -2, scale: 1.01 }}>
-                <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border">
-                  <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-                    {/* University Info */}
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="w-16 h-16 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] rounded-xl flex items-center justify-center text-white text-2xl flex-shrink-0">
-                        {application.universityData?.image_url ? (
-                          <img 
-                            src={application.universityData.image_url} 
-                            alt={application.universityName}
-                            className="w-full h-full object-cover rounded-xl"
-                          />
-                        ) : (
-                          <Building2 className="w-8 h-8" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex-1">
-                            <h3 className="font-bold text-xl mb-1 text-[#2C3539]">
-                              {application.universityName}
-                            </h3>
-                            <p className="text-gray-700 font-medium mb-2">
-                              {application.programName}
-                            </p>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${conf.color}`}>
-                            <div className="inline-flex items-center gap-1">
-                              <IconComp className="w-3 h-3" />
-                              {conf.label}
-                            </div>
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600 mb-3">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-4 h-4 text-[#E08D3C]" />
-                            <span>{application.city || "Location TBA"}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-[#E08D3C]" />
-                            <span>Intake: {application.intakeTerm || "TBA"}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-[#E08D3C]" />
-                            <span>Deadline: {application.deadline}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-[#E08D3C]" />
-                            <span>Ref: {application.referenceNumber || "Pending"}</span>
-                          </div>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-gray-600 font-medium">
-                              Application Progress
-                            </span>
-                            <span className="text-[#E08D3C] font-bold">
-                              {progress}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2.5">
-                            <div 
-                              className="bg-gradient-to-r from-[#E08D3C] to-[#C4DFF0] h-2.5 rounded-full transition-all duration-500" 
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-gray-500">
-                            <span>Draft</span>
-                            <span>In Review</span>
-                            <span>Decision</span>
-                          </div>
-                        </div>
-
-                        {/* Workflow Info */}
-                        {application.workflowProgress && (
-                          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                            <div className="flex items-start gap-2">
-                              <TrendingUp className="w-4 h-4 text-blue-600 mt-0.5" />
-                              <div className="flex-1 text-xs">
-                                <p className="text-blue-900 font-medium mb-1">Workflow Status</p>
-                                <div className="space-y-1 text-blue-700">
-                                  {application.workflowProgress.requiresStudentAction && (
-                                    <p className="font-medium">⚠️ Action required from your side</p>
-                                  )}
-                                  <p>
-                                    Pending tasks: {application.workflowProgress.pendingTasks || 0}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-col gap-2 lg:w-40">
-                      <button
-              onClick={() => handleViewDetails(application.id)}
-              className="px-4 py-2 bg-white border-2 border-[#2C3539] text-[#2C3539] rounded-lg hover:bg-[#2C3539] hover:text-white text-sm font-medium flex items-center justify-center gap-2 transition-all">
-              <Eye className="w-4 h-4" />
-              View Details
-            </button>
-                      
-                      {(application.status?.toUpperCase() === "DRAFT" || 
-              application.status?.toLowerCase() === "draft") && (
-              <button
-                onClick={() => openSubmitModal(application.id)}
-                className="px-4 py-2 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] text-sm font-medium flex items-center justify-center gap-2 transition-all">
-                <Send className="w-4 h-4" />
-                Submit
-              </button>
-            )}
-
-                      {application.workflowProgress?.requiresStudentAction && (
-                        <button
-                          className="px-4 py-2 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg hover:bg-yellow-200 text-sm font-medium flex items-center justify-center gap-2 transition-all">
-                          <AlertCircle className="w-4 h-4" />
-                          Action Needed
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })
-        ) : (
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
-            <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] flex items-center justify-center mb-4">
-              <Building2 className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="font-bold text-xl text-gray-900 mb-2">
-              {selectedCountry === "ALL" 
-                ? "No applications yet" 
-                : `No applications for ${selectedCountry === "DE" ? "Germany" : "United Kingdom"}`}
-            </h3>
-            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              {selectedCountry === "ALL"
-                ? "Start your journey by browsing universities and programs that match your profile."
-                : `Browse universities in ${selectedCountry === "DE" ? "Germany" : "United Kingdom"} to start applying.`}
-            </p>
-            <button
-              onClick={handleNewApplication}
-              className="px-6 py-3 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] font-medium inline-flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              Browse Universities
-            </button>
-          </div>
-        )}
       </motion.div>
 
       {/* Summary Stats */}
@@ -1037,6 +866,213 @@ const IconComp = conf.icon;
           </div>
         </motion.div>
       )}
+      
+
+      {/* Country Tabs */}
+      <div className="flex gap-2 border-b border-gray-200">
+        <button
+  onClick={() => setSelectedCountry("ALL")}
+  className={`px-6 py-3 font-medium transition-all ${
+    selectedCountry === "ALL"
+      ? "border-b-2 border-[#E08D3C] text-[#E08D3C]"
+      : "text-gray-600 hover:text-[#E08D3C]"
+  }`}>
+  All Countries
+  <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full">
+    {allCountriesCount}
+  </span>
+</button>
+<button
+  onClick={() => setSelectedCountry("DE")}
+  className={`px-6 py-3 font-medium transition-all ${
+    selectedCountry === "DE"
+      ? "border-b-2 border-[#E08D3C] text-[#E08D3C]"
+      : "text-gray-600 hover:text-[#E08D3C]"
+  }`}>
+  Germany
+  <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full">
+    {germanyCount}
+  </span>
+</button>
+<button
+  onClick={() => setSelectedCountry("UK")}
+  className={`px-6 py-3 font-medium transition-all ${
+    selectedCountry === "UK"
+      ? "border-b-2 border-[#E08D3C] text-[#E08D3C]"
+      : "text-gray-600 hover:text-[#E08D3C]"
+  }`}>
+  United Kingdom
+  <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded-full">
+    {ukCount}
+  </span>
+</button>
+        
+      </div>
+
+      {/* Applications List */}
+      <motion.div className="space-y-4" variants={container} initial="hidden" animate="show">
+        {filteredApplications.length > 0 ? (
+  filteredApplications.map((application) => {
+    const conf = getStatusConfig(application.status);
+const IconComp = conf.icon;
+    const progress = getProgress(application.completionPercentage);
+
+            return (
+              <motion.div key={application.id} variants={item} whileHover={{ y: -2, scale: 1.01 }}>
+                <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border">
+                  <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                    {/* University Info */}
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className="w-16 h-16 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] rounded-xl flex items-center justify-center text-white text-2xl flex-shrink-0">
+                        {application.universityData?.image_url ? (
+                          <img 
+                            src={application.universityData.image_url} 
+                            alt={application.universityName}
+                            className="w-full h-full object-cover rounded-xl"
+                          />
+                        ) : (
+                          <Building2 className="w-8 h-8" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-xl mb-1 text-[#2C3539]">
+                              {application.universityName}
+                            </h3>
+                            <p className="text-gray-700 font-medium mb-2">
+                              {application.programName}
+                            </p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${conf.color}`}>
+                            <div className="inline-flex items-center gap-1">
+                              <IconComp className="w-3 h-3" />
+                              {conf.label}
+                            </div>
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600 mb-3">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-[#E08D3C]" />
+                            <span>{application.city || ""}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-[#E08D3C]" />
+                            <span>Intake: {application.intakeTerm || ""}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-[#E08D3C]" />
+                            <span>Deadline: {application.deadline || ""}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-[#E08D3C]" />
+                            <span>Ref: {application.referenceNumber || ""}</span>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600 font-medium">
+                              Application Progress
+                            </span>
+                            <span className="text-[#E08D3C] font-bold">
+                              {progress}%
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2.5">
+                            <div 
+                              className="bg-gradient-to-r from-[#E08D3C] to-[#C4DFF0] h-2.5 rounded-full transition-all duration-500" 
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500">
+                            <span>Draft</span>
+                            <span>In Review</span>
+                            <span>Decision</span>
+                          </div>
+                        </div>
+
+                        {/* Workflow Info */}
+                        {application.workflowProgress && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                            <div className="flex items-start gap-2">
+                              <TrendingUp className="w-4 h-4 text-blue-600 mt-0.5" />
+                              <div className="flex-1 text-xs">
+                                <p className="text-blue-900 font-medium mb-1">Workflow Status</p>
+                                <div className="space-y-1 text-blue-700">
+                                  {application.workflowProgress.requiresStudentAction && (
+                                    <p className="font-medium">⚠️ Action required from your side</p>
+                                  )}
+                                  <p>
+                                    Pending tasks: {application.workflowProgress.pendingTasks || 0}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 lg:w-40">
+                      <button
+              onClick={() => handleViewDetails(application.id)}
+              className="px-4 py-2 bg-white border-2 border-[#2C3539] text-[#2C3539] rounded-lg hover:bg-[#2C3539] hover:text-white text-sm font-medium flex items-center justify-center gap-2 transition-all">
+              <Eye className="w-4 h-4" />
+              View Details
+            </button>
+                      
+                      {(application.status?.toUpperCase() === "DRAFT" && !application.submittedAt) && (
+  <button
+    onClick={() => openSubmitModal(application.id)}
+    className="px-4 py-2 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] text-sm font-medium flex items-center justify-center gap-2 transition-all">
+    <Send className="w-4 h-4" />
+    Submit
+  </button>
+)}
+
+                      {application.workflowProgress?.requiresStudentAction && (
+                        <button
+                          className="px-4 py-2 bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-lg hover:bg-yellow-200 text-sm font-medium flex items-center justify-center gap-2 transition-all">
+                          <AlertCircle className="w-4 h-4" />
+                          Action Needed
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })
+        ) : (
+          <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
+            <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] flex items-center justify-center mb-4">
+              <Building2 className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="font-bold text-xl text-gray-900 mb-2">
+              {selectedCountry === "ALL" 
+                ? "No applications yet" 
+                : `No applications for ${selectedCountry === "DE" ? "Germany" : "United Kingdom"}`}
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              {selectedCountry === "ALL"
+                ? "Start your journey by browsing universities and programs that match your profile."
+                : `Browse universities in ${selectedCountry === "DE" ? "Germany" : "United Kingdom"} to start applying.`}
+            </p>
+            <button
+              onClick={handleNewApplication}
+              className="px-6 py-3 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] font-medium inline-flex items-center gap-2">
+              <Plus className="w-5 h-5" />
+              Browse Universities
+            </button>
+          </div>
+        )}
+      </motion.div>
+
+      
 
       {/* Application Details Modal */}
       {/* Application Details Modal */}
@@ -1063,7 +1099,7 @@ const IconComp = conf.icon;
             </div>
             <div>
               <h2 className="text-2xl font-bold">Submit Application</h2>
-              <p className="text-white text-opacity-90">Review and Confirm your submission</p>
+              <p className="text-white text-opacity-90">Review and confirm your submission</p>
             </div>
           </div>
           <button
@@ -1198,6 +1234,69 @@ const IconComp = conf.icon;
               Submit Application
             </>
           )}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Success/Error Modal */}
+{submitSuccessModal.isOpen && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+      {/* Content */}
+      <div className="p-8 text-center space-y-6">
+        {submitSuccessModal.data?.error ? (
+          <>
+            <div className="flex items-center justify-center">
+              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+                <XCircle className="w-12 h-12 text-red-500" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Submission Failed</h2>
+            <p className="text-gray-600">{submitSuccessModal.data.error}</p>
+            <p className="text-sm text-gray-500">Please refresh the page and try again.</p>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-center">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-12 h-12 text-green-500" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Application Submitted Successfully!</h2>
+            
+            <div className="bg-gray-50 p-4 rounded-xl space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">University:</span>
+                <span className="font-semibold text-gray-900">{submitSuccessModal.data?.universityName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Reference Number:</span>
+                <span className="font-mono font-bold text-[#E08D3C]">{submitSuccessModal.data?.referenceNumber}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Status:</span>
+                <span className="font-semibold text-green-600">{submitSuccessModal.data?.status}</span>
+              </div>
+            </div>
+            
+            <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-yellow-800 text-left">
+                Please keep your reference number safe for tracking
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-8 pb-8">
+        <button
+          onClick={() => setSubmitSuccessModal({ isOpen: false, data: null })}
+          className="w-full px-6 py-3 bg-[#E08D3C] text-white rounded-xl hover:bg-[#c77a32] transition-colors font-semibold shadow-lg">
+          Close
         </button>
       </div>
     </div>

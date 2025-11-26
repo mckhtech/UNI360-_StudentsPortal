@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import React from 'react';
 
 /* ---------- Types ---------- */
-type ResourceCategory = 'language' | 'services' | 'guides' | 'checklists' | 'scholarships' | 'calculators';
-type ResourceType = 'Service' | 'Guide' | 'Checklist' | 'Scholarship' | 'Language Course' | 'Calculator';
+type ResourceCategory = 'language' | 'services' | 'guides' | 'insurance' | 'checklists' | 'scholarships' | 'calculators';
+type ResourceType = 'Service' | 'Guide' | 'Checklist' | 'Scholarship' | 'Language Course' | 'Calculator' | 'Interview Prep';
 
 interface Resource {
   id: number;
@@ -60,7 +60,8 @@ export default function Resources() {
     { id: 'guides', label: 'Study Guides', count: 6 },
     { id: 'checklists', label: 'Checklists', count: 4 },
     { id: 'scholarships', label: 'Scholarships', count: 3 },
-    { id: 'calculators', label: 'Calculators', count: 3 }
+    { id: 'calculators', label: 'Calculators', count: 3 },
+    { id: 'insurance', label: 'Insurance', count: 2 }
   ];
 
   const resources: Resource[] = [
@@ -246,7 +247,62 @@ export default function Resources() {
       featured: true,
       isService: true,
       redirectLink: 'https://your-flight-booking-link.com'
-    }
+    },
+    // 17) Post Arrival Support (MakeMyTrip)
+{
+  id: 17,
+  title: "Post Arrival Support",
+  description: "Exclusive post-arrival support to help you settle smoothly. Includes airport pickup assistance, travel support, and arrival planning.",
+  category: "services",
+  type: "Service",
+  readTime: "Instant Support",
+  tags: ["Arrival", "Germany", "Support"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://www.makemytrip.com/"
+},
+
+// 18) International Money Transfer (Wise)
+{
+  id: 18,
+  title: "International Money Transfer",
+  description: "Send money abroad securely with low fees and real exchange rates. Trusted platform for international student transfers.",
+  category: "services",
+  type: "Service",
+  readTime: "Secure Transfer",
+  tags: ["Finance", "Money Transfer", "International"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://wise.com/"
+},
+// Travel Insurance
+{
+  id: 19,
+  title: "Travel Insurance for Students",
+  description: "Essential travel insurance covering medical emergencies, baggage loss, and trip delays for international students.",
+  category: "insurance",
+  type: "Service",
+  readTime: "5 min",
+  tags: ["Insurance", "Travel", "Safety"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://www.icicilombard.com/travel-insurance"
+},
+
+// Student Health Insurance
+{
+  id: 20,
+  title: "Student Health Insurance (Germany/UK)",
+  description: "Mandatory health insurance options for students studying abroad. Compare the best statutory and private options available.",
+  category: "insurance",
+  type: "Service",
+  readTime: "Quick Guide",
+  tags: ["Insurance", "Health", "Students"],
+  featured: true,
+  isService: true,
+  redirectLink: "https://www.daad.in/en/study-research-in-germany/insurance/"
+}
+
     
   ];
 
