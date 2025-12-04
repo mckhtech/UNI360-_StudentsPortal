@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getStudentProfile } from "@/services/studentProfile";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -45,7 +46,8 @@ import {
   submitApplication,
   getAllCourses,
   addCourseToFavorites,
-  removeCourseFromFavorites
+  removeCourseFromFavorites,
+  getProfileProgress
 } from "@/services/studentProfile";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -64,7 +66,16 @@ const filters = [
 ];
 
 // Course Modal Component
-const CourseModal = ({ university, isOpen, onClose, setSelectedCourse, setSelectedUniversity, setIsPaymentModalOpen, setIsFormModalOpen }) => {
+const CourseModal = ({ 
+  university, 
+  isOpen, 
+  onClose, 
+  setSelectedCourse, 
+  setSelectedUniversity, 
+  setIsPaymentModalOpen, 
+  setIsFormModalOpen,
+  fetchAndProcessProfile  // Add this new prop
+}) => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -207,7 +218,9 @@ const loadCourses = async () => {
     return `${months} months`;
   };
 
- const handleApplyNow = (course) => {
+// Modify the handleApplyNow function in CourseModal (around line 180)
+// REPLACE the entire handleApplyNow function with:
+const handleApplyNow = async (course) => {
   console.log('=== COURSE SELECTED FOR APPLICATION ===');
   console.log('Course:', course);
   console.log('University:', university);
@@ -221,6 +234,10 @@ const loadCourses = async () => {
     alert('Error: University information missing. Please try again.');
     return;
   }
+  
+  // Fetch profile data before opening form
+  console.log('Fetching profile data...');
+  await fetchAndProcessProfile();
   
   // CRITICAL: Store course and university in parent state
   console.log('Setting selectedCourse and selectedUniversity...');
@@ -479,354 +496,104 @@ const handleFavoriteClick = async (courseId, isFavorite) => {
   );
 };
 
-// Application Form Modal
-// const ApplicationFormModal = ({ university, isOpen, onClose, onSubmit }) => {
-//   const [formData, setFormData] = useState({
-//     fullName: "",
-//     email: "",
-//     phone: "",
-//     dateOfBirth: "",
-//     nationality: "",
-//     tenthMarks: "",
-//     twelfthMarks: "",
-//     graduationMarks: "",
-//     passportNumber: "",
-//     apsCertificate: null,
-//     lomFile: null,
-//     additionalInfo: "",
-//   });
-//   const [errors, setErrors] = useState({});
-//   const [loading, setLoading] = useState(false);
-
-//   useEffect(() => {
-//     if (isOpen) {
-//       setFormData({
-//         fullName: "",
-//         email: "",
-//         phone: "",
-//         dateOfBirth: "",
-//         nationality: "",
-//         tenthMarks: "",
-//         twelfthMarks: "",
-//         graduationMarks: "",
-//         passportNumber: "",
-//         apsCertificate: null,
-//         lomFile: null,
-//         additionalInfo: "",
-//       });
-//       setErrors({});
-//     }
-//   }, [isOpen]);
-
-//   const handleInputChange = (e) => {
-//     const { name, value } = e.target;
-//     setFormData((prev) => ({ ...prev, [name]: value }));
-//     if (errors[name]) {
-//       setErrors((prev) => ({ ...prev, [name]: "" }));
-//     }
-//   };
-
-//   const handleFileChange = (e, field) => {
-//     const file = e.target.files[0];
-//     if (file && file.size > 5 * 1024 * 1024) {
-//       alert("File size too large. Max 5MB.");
-//       return;
-//     }
-//     setFormData((prev) => ({ ...prev, [field]: file }));
-//     if (errors[field]) {
-//       setErrors((prev) => ({ ...prev, [field]: "" }));
-//     }
-//   };
-
-//   const validateForm = () => {
-//   const newErrors = {};
-
-//   // Only validate email format if user enters something
-//   if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
-//     newErrors.email = "Invalid email";
-//   }
-
-//   setErrors(newErrors);
-//   return Object.keys(newErrors).length === 0;
-// };
-
-
-//   const handleSubmit = (e) => {
-//   e.preventDefault();
-//   console.log("=== FORM SUBMIT ===");
-//   console.log("University prop in modal:", university);
-//   console.log("Form data:", formData);
+// Profile Incomplete Modal
+// Profile Incomplete Modal
+// Profile Incomplete Modal
+const ProfileIncompleteModal = ({ isOpen, onClose, profilePercentage }) => {
+  const navigate = useNavigate(); // ADD THIS - import navigate inside the component
   
-//   if (!university) {
-//     console.error("No university in ApplicationFormModal!");
-//     alert("Error: University information missing. Please try again.");
-//     return;
-//   }
-  
-//   if (validateForm()) {
-//     setLoading(true);
-//     setTimeout(() => {
-//       setLoading(false);
-//       console.log("Calling onSubmit with university:", university);
-//       onSubmit(formData, university);
-//     }, 1000);
-//   }
-// };
+  if (!isOpen) return null;
 
-//   if (!isOpen) return null;
+  const handleGoToProfile = () => {
+    onClose();
+    navigate("/profilebuilder");
+  };
 
-//   return (
-//     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
-//       <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-lg">
-//         {/* Modal Header */}
-//         <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
-//           <div className="flex items-center justify-between">
-//             <div className="flex items-center space-x-2">
-//               <Building2 className="w-6 h-6" />
-//               <div>
-//                 <h2 className="text-lg font-bold">Apply to {university?.name}</h2>
-//               </div>
-//             </div>
-//             <Button 
-//               variant="ghost" 
-//               size="sm" 
-//               onClick={onClose} 
-//               className="text-white hover:bg-white hover:bg-opacity-20"
-//             >
-//               <X className="w-4 h-4" />
-//             </Button>
-//           </div>
-//         </div>
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full shadow-lg">
+        {/* Header */}
+        <div className="p-6 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white rounded-t-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-8 h-8" />
+              <div>
+                <h2 className="text-xl font-bold">Complete Your Profile</h2>
+                <p className="text-sm text-white text-opacity-90">Required to apply</p>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClose} 
+              className="text-white hover:bg-white hover:bg-opacity-20"
+            >
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
 
-//         {/* Form */}
-//         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-//           {/* Personal Information */}
-//           <div className="space-y-2">
-//             <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
-//               <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">1</span>
-//               Personal Information
-//             </h3>
-//             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-//               <div className="space-y-1">
-//                 <Label htmlFor="fullName" className="text-xs font-semibold text-gray-700">Full Name</Label>
-//                 <Input 
-//                   id="fullName" 
-//                   name="fullName" 
-//                   value={formData.fullName} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.fullName ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="email" className="text-xs font-semibold text-gray-700">Email</Label>
-//                 <Input 
-//                   id="email" 
-//                   name="email" 
-//                   type="email" 
-//                   value={formData.email} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.email ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="phone" className="text-xs font-semibold text-gray-700">Phone</Label>
-//                 <Input 
-//                   id="phone" 
-//                   name="phone" 
-//                   value={formData.phone} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.phone ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="dateOfBirth" className="text-xs font-semibold text-gray-700">Date of Birth</Label>
-//                 <Input 
-//                   id="dateOfBirth" 
-//                   name="dateOfBirth" 
-//                   type="date" 
-//                   value={formData.dateOfBirth} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.dateOfBirth ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.dateOfBirth && <p className="text-red-500 text-xs">{errors.dateOfBirth}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="nationality" className="text-xs font-semibold text-gray-700">Nationality</Label>
-//                 <Input 
-//                   id="nationality" 
-//                   name="nationality" 
-//                   value={formData.nationality} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.nationality ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.nationality && <p className="text-red-500 text-xs">{errors.nationality}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="passportNumber" className="text-xs font-semibold text-gray-700">Passport Number</Label>
-//                 <Input 
-//                   id="passportNumber" 
-//                   name="passportNumber" 
-//                   value={formData.passportNumber} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.passportNumber ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.passportNumber && <p className="text-red-500 text-xs">{errors.passportNumber}</p>}
-//               </div>
-//             </div>
-//           </div>
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          <div className="text-center">
+            <p className="text-gray-700 mb-4">
+              To make your application process smooth and easy, please complete your profile first.
+            </p>
+            
+            {/* Progress Bar */}
+            <div className="mb-6">
+              <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <span>Profile Completion</span>
+                <span className="font-semibold text-[#E08D3C]">{profilePercentage}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className="bg-[#E08D3C] h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${profilePercentage}%` }}
+                />
+              </div>
+            </div>
 
-//           {/* Academic Information */}
-//           <div className="space-y-2">
-//             <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
-//               <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">2</span>
-//               Academic Information
-//             </h3>
-//             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-//               <div className="space-y-1">
-//                 <Label htmlFor="tenthMarks" className="text-xs font-semibold text-gray-700">10th Marks</Label>
-//                 <Input 
-//                   id="tenthMarks" 
-//                   name="tenthMarks" 
-//                   type="number" 
-//                   step="0.01" 
-//                   value={formData.tenthMarks} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.tenthMarks ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.tenthMarks && <p className="text-red-500 text-xs">{errors.tenthMarks}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="twelfthMarks" className="text-xs font-semibold text-gray-700">12th Marks</Label>
-//                 <Input 
-//                   id="twelfthMarks" 
-//                   name="twelfthMarks" 
-//                   type="number" 
-//                   step="0.01" 
-//                   value={formData.twelfthMarks} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.twelfthMarks ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.twelfthMarks && <p className="text-red-500 text-xs">{errors.twelfthMarks}</p>}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="graduationMarks" className="text-xs font-semibold text-gray-700">Graduation Marks</Label>
-//                 <Input 
-//                   id="graduationMarks" 
-//                   name="graduationMarks" 
-//                   type="number" 
-//                   step="0.01" 
-//                   value={formData.graduationMarks} 
-//                   onChange={handleInputChange} 
-//                   className={cn("h-9 text-sm", errors.graduationMarks ? "border-red-500" : "border-gray-200")} 
-//                 />
-//                 {errors.graduationMarks && <p className="text-red-500 text-xs">{errors.graduationMarks}</p>}
-//               </div>
-//             </div>
-//           </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="space-y-2">
+                <div className="flex items-start gap-2 text-sm text-blue-800">
+                  <Star className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Discover the best courses for you</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-blue-800">
+                  <FileText className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Auto-fill application forms instantly</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-blue-800">
+                  <TrendingUp className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <span>Boost your acceptance chances</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-//           {/* Documents */}
-//           <div className="space-y-2">
-//             <h3 className="text-sm font-bold text-[#2C3539] flex items-center">
-//               <span className="w-6 h-6 rounded-full bg-[#E08D3C] text-white flex items-center justify-center mr-2 text-xs">3</span>
-//               Documents
-//             </h3>
-//             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-//               <div className="space-y-1">
-//                 <Label htmlFor="apsCertificate" className="text-xs font-semibold text-gray-700">APS Certificate</Label>
-//                 <div className="border border-dashed border-gray-300 rounded-lg p-3 text-center">
-//                   <Input 
-//                     id="apsCertificate" 
-//                     type="file" 
-//                     accept=".pdf,.doc,.docx" 
-//                     onChange={(e) => handleFileChange(e, "apsCertificate")} 
-//                     className={cn("text-sm", errors.apsCertificate ? "border-red-500" : "")} 
-//                   />
-//                   <p className="text-xs text-gray-500 mt-1">PDF/DOC (Max 5MB)</p>
-//                 </div>
-//                 {errors.apsCertificate && <p className="text-red-500 text-xs">{errors.apsCertificate}</p>}
-//                 {formData.apsCertificate && (
-//                   <div className="flex items-center text-xs text-green-700">
-//                     <Check className="w-3 h-3 text-green-600 mr-1" />
-//                     {formData.apsCertificate.name}
-//                   </div>
-//                 )}
-//               </div>
-//               <div className="space-y-1">
-//                 <Label htmlFor="lomFile" className="text-xs font-semibold text-gray-700">Letter of Motivation</Label>
-//                 <div className="border border-dashed border-red-300 rounded-lg p-3 text-center bg-red-50">
-//                   <Input 
-//                     id="lomFile" 
-//                     type="file" 
-//                     accept=".pdf,.doc,.docx" 
-//                     onChange={(e) => handleFileChange(e, "lomFile")} 
-//                     className={cn("text-sm", errors.lomFile ? "border-red-500" : "")} 
-//                   />
-//                   <p className="text-xs text-red-600 mt-1">Required</p>
-//                 </div>
-//                 {errors.lomFile && <p className="text-red-500 text-xs">{errors.lomFile}</p>}
-//                 {formData.lomFile && (
-//                   <div className="flex items-center text-xs text-green-700">
-//                     <Check className="w-3 h-3 text-green-600 mr-1" />
-//                     {formData.lomFile.name}
-//                   </div>
-//                 )}
-//               </div>
-//             </div>
-//           </div>
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 h-11"
+            >
+              Maybe Later
+            </Button>
+            <Button
+              onClick={handleGoToProfile}
+              className="flex-1 h-11 bg-[#E08D3C] hover:bg-[#c77a32] text-white font-semibold"
+            >
+              Complete Profile
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-//           {/* Additional Information */}
-//           <div className="space-y-1">
-//             <Label htmlFor="additionalInfo" className="text-xs font-semibold text-gray-700">Additional Information</Label>
-//             <Textarea 
-//               id="additionalInfo" 
-//               name="additionalInfo" 
-//               value={formData.additionalInfo} 
-//               onChange={handleInputChange} 
-//               rows={3} 
-//               className="text-sm border-gray-200" 
-//               placeholder="Optional information..."
-//             />
-//           </div>
-
-//           {/* Submit Button */}
-//           <div className="flex justify-end space-x-2 pt-3 border-t border-gray-200">
-//             <Button 
-//               type="button" 
-//               variant="outline" 
-//               onClick={onClose} 
-//               className="px-4 py-2 text-xs" 
-//               disabled={loading}
-//             >
-//               Cancel
-//             </Button>
-//             <Button 
-//               type="submit" 
-//               className="px-4 py-2 bg-primary text-white text-xs" 
-//               disabled={loading}
-//             >
-//               {loading ? (
-//                 <>
-//                   <Loader2 className="w-4 h-4 animate-spin mr-1" />
-//                   Submitting...
-//                 </>
-//               ) : (
-//                 <>
-//                   <Upload className="w-4 h-4 mr-1" />
-//                   Submit
-//                 </>
-//               )}
-//             </Button>
-//           </div>
-//         </form>
-//       </div>
-//     </div>
-//   );
-// };
-
-// ============ DYNAMIC FORM FIELD GENERATOR ============
 const generateFormFields = (course, university) => {
   const fields = [];
   
@@ -1205,13 +972,31 @@ fields.push({
 
 // ============ DYNAMIC APPLICATION FORM ============
 // ============ DYNAMIC APPLICATION FORM ============
-const DynamicApplicationFormModal = ({ university, course, isOpen, onClose, onSubmit }) => {
+const DynamicApplicationFormModal = ({ 
+  university, 
+  course, 
+  isOpen, 
+  onClose, 
+  onSubmit, 
+  profileData, 
+  profileLoading,
+  user,
+}) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [formFields, setFormFields] = useState([]);
 
+  const convertDateFormat = (dateStr) => {
+    if (!dateStr) return '';
+    // Convert "2003-05-05" to "05-05-2003"
+    const [year, month, day] = dateStr.split('-');
+    return `${day}-${month}-${year}`;
+  };
+
   // Generate dynamic form fields when course changes
+// Modify DynamicApplicationFormModal useEffect (around line 780)
+// REPLACE the entire useEffect with:
   useEffect(() => {
     if (isOpen && course && university) {
       console.log('[DynamicForm] Generating form fields for course:', course.name);
@@ -1219,7 +1004,7 @@ const DynamicApplicationFormModal = ({ university, course, isOpen, onClose, onSu
       const fields = generateFormFields(course, university);
       setFormFields(fields);
       
-      // Initialize form data with default values
+      // Initialize form data with profile data if available
       const initialData = {
         // Hidden metadata
         targetCourse: course.name,
@@ -1230,19 +1015,86 @@ const DynamicApplicationFormModal = ({ university, course, isOpen, onClose, onSu
         intakeSeason: course.intake_season,
       };
       
-      // Set empty values for all fields
-      fields.forEach(section => {
-        section.fields.forEach(field => {
-          initialData[field.id] = '';
+      // Auto-fill from profile if available
+      if (profileData) {
+        console.log('[DynamicForm] Auto-filling with profile data:', profileData);
+        
+        const basicInfo = profileData.testing_basic_info || {};
+        const education = profileData.education || {};
+        const testScores = profileData.test_scores || {};
+        const experience = profileData.experience || {};
+        const preferences = profileData.preferences || {};
+        
+        // Personal Information
+        initialData.fullName = ''; // Not in profile API
+        initialData.email = user?.email || '';
+        initialData.phone = basicInfo.phone || '';
+        initialData.dateOfBirth = convertDateFormat(basicInfo.date_of_birth) || '';
+        initialData.nationality = basicInfo.nationality || '';
+        initialData.passportNumber = basicInfo.passport_number || '';
+        
+        // Academic Background
+        initialData.previousDegree = ''; // Can be filled manually
+        initialData.previousUniversity = education.institution_name || '';
+        initialData.graduationYear = education.graduation_year || '';
+        initialData.gpa = education.gpa || '';
+        initialData.gradingSystem = education.grading_system || '';
+        
+        // Research/Work Experience
+        initialData.researchExperience = ''; // Can be filled manually
+        initialData.publications = ''; // Can be filled manually
+        
+        // Work experience - combine if available
+        if (experience.has_work_experience && experience.work_experiences?.length > 0) {
+          const workExpText = experience.work_experiences
+            .map(exp => `${exp.title || ''} at ${exp.company || ''} (${exp.duration || ''})`)
+            .join('\n');
+          initialData.workExperience = workExpText;
+        } else if (experience.volunteer_work) {
+          initialData.workExperience = `Volunteer: ${experience.volunteer_work}`;
+        } else {
+          initialData.workExperience = '';
+        }
+        
+        initialData.yearsOfExperience = experience.total_experience_years || '';
+        
+        // Language Proficiency
+        initialData.languageTest = testScores.test_type || '';
+        initialData.languageScore = testScores.overall_score || '';
+        initialData.testDate = convertDateFormat(testScores.test_date) || '';
+        
+        // Intake Preference - use preferences as default
+        initialData.targetSemester = preferences.intake_semester?.toUpperCase() || course.intake_season;
+        initialData.targetYear = preferences.intake_year || new Date().getFullYear() + 1;
+        
+        // Leave motivation and additional info empty for user to fill
+        initialData.motivation = '';
+        initialData.careerGoals = '';
+        initialData.additionalInfo = '';
+        initialData.portfolioLink = '';
+        initialData.auditionLink = '';
+        
+        console.log('[DynamicForm] ✅ Auto-filled data:', initialData);
+      } else {
+        // Set empty values for all fields if no profile data
+        fields.forEach(section => {
+          section.fields.forEach(field => {
+            if (!initialData[field.id]) {
+              initialData[field.id] = '';
+            }
+          });
         });
-      });
+      }
       
       setFormData(initialData);
       setErrors({});
       
       console.log('[DynamicForm] Generated', fields.length, 'sections');
     }
-  }, [isOpen, course, university]);
+  }, [isOpen, course, university, profileData, user]);
+
+  // Check if user is returning from profile builder
+
 
   const handleInputChange = (fieldId, value) => {
     setFormData(prev => ({ ...prev, [fieldId]: value }));
@@ -1296,6 +1148,9 @@ const DynamicApplicationFormModal = ({ university, course, isOpen, onClose, onSu
       onSubmit(formData, university);
     }, 1000);
   };
+
+  // Check if profile is complete before allowing application
+
 
   // Render different field types
   const renderField = (field) => {
@@ -1446,6 +1301,23 @@ const DynamicApplicationFormModal = ({ university, course, isOpen, onClose, onSu
             </div>
           </div>
         </div>
+
+        {profileLoading && (
+          <div className="p-3 bg-blue-50 border-b border-blue-100 flex items-center gap-2 flex-shrink-0">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+            <span className="text-xs text-blue-700">Loading your profile data...</span>
+          </div>
+        )}
+
+        {profileData && !profileLoading && (
+          <div className="p-3 bg-green-50 border-b border-green-100 flex items-start gap-2 flex-shrink-0">
+            <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-green-700">
+              <p className="font-semibold mb-1">Profile data loaded</p>
+              <p>Some fields have been auto-filled from your profile. Please review and complete remaining fields.</p>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Form Sections - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4">
@@ -1748,9 +1620,14 @@ const [hasScholarships, setHasScholarships] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [showProfileIncompleteModal, setShowProfileIncompleteModal] = useState(false);
+const [profileCompletionPercentage, setProfileCompletionPercentage] = useState(0);
 
   // Course statistics for universities
   const [universityStats, setUniversityStats] = useState({});
+  // In the main Universities component, ADD these state variables right after your existing modal states (around line 1005, after isPaymentModalOpen)
+  const [profileData, setProfileData] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   // Add this right after your state declarations to debug
 useEffect(() => {
@@ -1768,6 +1645,49 @@ useEffect(() => {
     loadFilterOptions();
     loadData();
   }, []); // Only runs once on mount
+
+  // Check if user is returning from profile builder
+useEffect(() => {
+  const checkReturnFromProfile = async () => {
+    const returnData = sessionStorage.getItem('returnToUniversity');
+    
+    if (returnData) {
+      try {
+        const { universityId, universityName, timestamp } = JSON.parse(returnData);
+        
+        // Check if timestamp is recent (within 1 hour)
+        const oneHour = 60 * 60 * 1000;
+        if (Date.now() - timestamp < oneHour) {
+          console.log('[Universities] User returned from profile builder');
+          
+          // Check if profile is now complete
+          const isComplete = await checkProfileCompletion();
+          
+          if (isComplete) {
+            // Find the university
+            const uni = universities.find(u => u.id === universityId);
+            
+            if (uni) {
+              console.log('[Universities] Profile complete, opening course modal for:', universityName);
+              setSelectedUniversity(uni);
+              setIsModalOpen(true);
+            }
+          }
+        }
+        
+        // Clear the return data
+        sessionStorage.removeItem('returnToUniversity');
+      } catch (error) {
+        console.error('[Universities] Error processing return from profile:', error);
+        sessionStorage.removeItem('returnToUniversity');
+      }
+    }
+  };
+  
+  if (universities.length > 0) {
+    checkReturnFromProfile();
+  }
+}, [universities]);
 
   // Load data when filters change (debounced to avoid excessive calls)
   // Load data when filters change (debounced to avoid excessive calls)
@@ -2215,18 +2135,18 @@ const handlePaymentSuccess = async (university) => {
 
     console.log('✅ Application successfully created with ID:', applicationId);
 
-// Store reference number for display on applications page (optional)
-const refNumber = response?.data?.referenceNumber || response?.referenceNumber || 'N/A';
-sessionStorage.setItem('lastSubmissionRef', refNumber);
+    // Close modals
+    setIsPaymentModalOpen(false);
+    setSelectedUniversity(null);
+    setSelectedCourse(null);
+    setIsFormModalOpen(false);
+    
+    // Success message
+    const refNumber = response?.data?.referenceNumber || response?.referenceNumber || 'N/A';
 
-// Close modals
-setIsPaymentModalOpen(false);
-setSelectedUniversity(null);
-setSelectedCourse(null);
-setIsFormModalOpen(false);
-
-// Redirect immediately to applications page
+// Direct navigation (no alert, no delay)
 navigate("/applications");
+
     
   } catch (error) {
     console.error('❌ Error creating application:', error);
@@ -2281,6 +2201,56 @@ navigate("/applications");
     return filtered;
   }, [universities, favorites, showFavorites, activeFilter, universityStats]);
 
+
+// Add this helper function to convert date format (add after filteredUniversities useMemo, around line 150)
+  const convertDateFormat = (dateStr) => {
+    if (!dateStr) return '';
+    // Convert "2003-05-05" to "05-05-2003"
+    const [year, month, day] = dateStr.split('-');
+    return `${day}-${month}-${year}`;
+  };
+
+  // Add this function to fetch and process profile data (add after convertDateFormat)
+  const fetchAndProcessProfile = async () => {
+    try {
+      setProfileLoading(true);
+      console.log('[Profile] Fetching student profile...');
+      
+      const response = await getStudentProfile();
+      
+      console.log('[Profile] Profile API response:', response);
+      
+      const profile = response?.data || response;
+      
+      setProfileData(profile);
+      
+      return profile;
+    } catch (error) {
+      console.error('[Profile] Error fetching profile:', error);
+      return null;
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // Check if profile is complete before allowing application
+  const checkProfileCompletion = async () => {
+    try {
+      console.log('[Universities] Checking profile completion...');
+      const progressData = await getProfileProgress();
+      const progress = progressData?.data?.percentage || progressData?.percentage || 0;
+      
+      console.log('[Universities] Profile completion:', progress + '%');
+      setProfileCompletionPercentage(progress);
+      
+      return progress >= 100;
+    } catch (error) {
+      console.error('[Universities] Error checking profile completion:', error);
+      return false;
+    }
+  };
+
+
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -2333,7 +2303,7 @@ navigate("/applications");
       setIsModalOpen(true);
     };
 
-    const handleApplyNow = () => {
+    const handleApplyNow = async () => {
   console.log("=== APPLY NOW CLICKED ===");
   console.log("University:", university);
   
@@ -2342,10 +2312,27 @@ navigate("/applications");
     return;
   }
   
-  // Open course modal first, not form modal
+  // Check if profile is complete
+  const isComplete = await checkProfileCompletion();
+  
+  if (!isComplete) {
+    // Store the university for return after profile completion
+    sessionStorage.setItem('returnToUniversity', JSON.stringify({
+      universityId: university.id,
+      universityName: university.name,
+      timestamp: Date.now()
+    }));
+    
+    // Show profile incomplete modal
+    setSelectedUniversity(university);
+    setShowProfileIncompleteModal(true);
+    return;
+  }
+  
+  // Profile is complete, proceed normally
   setSelectedUniversity(university);
-  setSelectedCourse(null); // Reset course selection
-  setIsModalOpen(true); // Open COURSE modal, not form modal
+  setSelectedCourse(null);
+  setIsModalOpen(true);
 };
 
     return (
@@ -2385,7 +2372,26 @@ navigate("/applications");
                 </p>
               </div>
             </div>
-            
+            <Button
+              size="sm"
+              variant="ghost"
+              className={`p-1 rounded-lg transition-all duration-200 ${
+                isFavorite(university.id)
+                  ? "text-red-500 hover:text-red-600 hover:bg-red-50"
+                  : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+              } ${heartLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+              onClick={handleHeartClick}
+              disabled={heartLoading}>
+              {heartLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Heart
+                  className={`w-4 h-4 ${
+                    isFavorite(university.id) ? "fill-current" : ""
+                  }`}
+                />
+              )}
+            </Button>
           </div>
 
           <div className="flex gap-2 mb-3">
@@ -2800,12 +2806,12 @@ navigate("/applications");
   onClose={() => {
     console.log("Closing course modal, NOT clearing selectedUniversity");
     setIsModalOpen(false);
-    // DON'T clear selectedUniversity here - it's needed for the form modal!
   }}
   setSelectedCourse={setSelectedCourse}
   setSelectedUniversity={setSelectedUniversity}
   setIsPaymentModalOpen={setIsPaymentModalOpen}
   setIsFormModalOpen={setIsFormModalOpen}
+  fetchAndProcessProfile={fetchAndProcessProfile}
 />
 
 {/* Dynamic Application Form Modal - Opens Second */}
@@ -2817,6 +2823,9 @@ navigate("/applications");
     setIsFormModalOpen(false);
   }}
   onSubmit={handleFormSubmit}
+  profileData={profileData}
+  profileLoading={profileLoading}
+  user={user}
 />
 
 {/* Payment Modal - Opens Third */}
@@ -2834,6 +2843,17 @@ navigate("/applications");
     // Pass the university explicitly
     handlePaymentSuccess(uni || selectedUniversity);
   }}
+/>
+
+{/* Profile Incomplete Modal */}
+{/* Profile Incomplete Modal */}
+<ProfileIncompleteModal
+  isOpen={showProfileIncompleteModal}
+  onClose={() => {
+    setShowProfileIncompleteModal(false);
+    setSelectedUniversity(null);
+  }}
+  profilePercentage={profileCompletionPercentage}
 />
 
 

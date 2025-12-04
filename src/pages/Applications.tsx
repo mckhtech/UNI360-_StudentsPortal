@@ -453,7 +453,7 @@ useEffect(() => {
     console.log('=== FETCHING APPLICATIONS FROM API ===');
     console.log('Country filter:', countryCode);
     
-    const response = await getStudentApplications(countryCode);
+    const response = await getStudentApplications(countryCode || undefined);
     console.log('Raw applications response:', response);
     
     let apps = [];
@@ -569,28 +569,14 @@ useEffect(() => {
     console.log('✅ Enriched applications:', enriched);
     setApplications(enriched);
     
-    // Update counts based on current filter
-    if (countryCode === undefined) {
-      // ALL countries
-      setAllCountriesCount(enriched.length);
-      
-      // Silently fetch Germany and UK counts for tab badges
-      try {
-        const deResponse = await getStudentApplications('DE');
-        const deApps = Array.isArray(deResponse) ? deResponse : (deResponse.data?.applications || deResponse.data || []);
-        setGermanyCount(deApps.length);
-        
-        const ukResponse = await getStudentApplications('UK');
-        const ukApps = Array.isArray(ukResponse) ? ukResponse : (ukResponse.data?.applications || ukResponse.data || []);
-        setUkCount(ukApps.length);
-      } catch (err) {
-        console.warn('Failed to fetch country-specific counts:', err);
-      }
-    } else if (countryCode === 'DE') {
-      setGermanyCount(enriched.length);
-    } else if (countryCode === 'UK') {
-      setUkCount(enriched.length);
-    }
+    // Update the count for whichever tab is currently selected
+if (countryCode === undefined) {
+  setAllCountriesCount(enriched.length);
+} else if (countryCode === 'DE') {
+  setGermanyCount(enriched.length);
+} else if (countryCode === 'UK') {
+  setUkCount(enriched.length);
+}
     
   } catch (err) {
     console.error("❌ Error loading applications:", err);

@@ -224,9 +224,22 @@ export const loadProfileData = async () => {
 
 // ==================== APPLICATIONS ENDPOINTS ====================
 
-export const getStudentApplications = async () => {
+export const getStudentApplications = async (countryCode) => {
   try {
-    const response = await apiRequest('/api/v1/students/applications');
+    // Build the endpoint with optional countryCode parameter
+    let endpoint = '/api/v1/students/applications';
+    
+    // Only add countryCode param for DE (Germany) and UK tabs
+    if (countryCode === 'DE') {
+      endpoint += '?countryCode=Germany';
+    } else if (countryCode === 'UK') {
+      endpoint += '?countryCode=UK';
+    }
+    // For 'ALL' or undefined, use endpoint without params
+    
+    console.log('Fetching applications from:', endpoint);
+    
+    const response = await apiRequest(endpoint);
     return Array.isArray(response) ? response : (response.data || []);
   } catch (error) {
     console.error('Error fetching student applications:', error);
