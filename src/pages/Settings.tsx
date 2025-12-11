@@ -324,82 +324,14 @@ const Settings = () => {
                       onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: '#2C3539' }}>
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:border-transparent text-sm sm:text-base"
-                      onFocus={(e) => e.target.style.borderColor = '#C4DFF0'}
-                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: '#2C3539' }}>
-                      Date of Birth
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.dateOfBirth}
-                      onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:border-transparent text-sm sm:text-base"
-                      onFocus={(e) => e.target.style.borderColor = '#C4DFF0'}
-                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: '#2C3539' }}>
-                      Nationality
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.nationality}
-                      onChange={(e) => handleInputChange('nationality', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:border-transparent text-sm sm:text-base"
-                      onFocus={(e) => e.target.style.borderColor = '#C4DFF0'}
-                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: '#2C3539' }}>
-                      Current Location
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.currentLocation}
-                      onChange={(e) => handleInputChange('currentLocation', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:border-transparent text-sm sm:text-base"
-                      onFocus={(e) => e.target.style.borderColor = '#C4DFF0'}
-                      onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
-                    />
-                  </div>
+                  
+                  
+                  
+                  
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-3" style={{ color: '#2C3539' }}>
-                    Target Study Countries
-                  </label>
-                  <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {['Germany', 'United Kingdom'].map((country) => (
-                      <label key={country} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.targetCountries.includes(country)}
-                          onChange={() => handleCountryToggle(country)}
-                          className="rounded border-gray-300 focus:ring-2"
-                          style={{ 
-                            accentColor: '#C4DFF0',
-                            '--tw-ring-color': '#C4DFF0'
-                          } as React.CSSProperties}
-                        />
-                        <span className="text-sm text-gray-700">{country}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                
+              
 
                 <div className="flex justify-end pt-4">
                   <Button onClick={handleSaveProfile} disabled={isSaving}>

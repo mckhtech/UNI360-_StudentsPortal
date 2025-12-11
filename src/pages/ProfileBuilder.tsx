@@ -701,7 +701,7 @@ export default function ProfileBuilder() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto p-6">
+  <div className="max-w-4xl mx-auto p-6 pb-24 sm:pb-6">
         <motion.div 
           className="text-center mb-12" 
           initial={{ opacity: 0, y: -20 }} 
@@ -739,7 +739,8 @@ export default function ProfileBuilder() {
           </div>
 
           {/* Step indicators */}
-          <div className={`grid gap-4 ${steps.length > 7 ? 'grid-cols-5' : 'grid-cols-7'}`}>
+          {/* Step indicators */}
+          <div className={`grid gap-3 ${steps.length > 7 ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5' : 'grid-cols-3 sm:grid-cols-5 md:grid-cols-7'}`}>
             {steps.map((step, index) => {
               const isCompleted = completedSteps.includes(step.id);
               const isCurrent = currentStepIndex === index;
@@ -756,7 +757,7 @@ export default function ProfileBuilder() {
                   }}
                 >
                   <div
-                    className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 transition-all duration-300 shadow-md ${
+  className={`w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center mb-2 sm:mb-3 md:mb-4 transition-all duration-300 shadow-md ${
                       isCurrent
                         ? "bg-primary text-primary-foreground scale-110 shadow-lg"
                         : isCompleted
@@ -764,17 +765,17 @@ export default function ProfileBuilder() {
                         : "bg-muted text-muted-foreground border-2 border-border"
                     }`}>
                     {isCompleted ? (
-                      <Check className="h-6 w-6" />
-                    ) : (
-                      <span className="font-semibold text-lg">{step.id}</span>
-                    )}
+  <Check className="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+) : (
+  <span className="font-semibold text-sm sm:text-base md:text-lg">{step.id}</span>
+)}
                   </div>
                   <div className="space-y-2">
-                    <h4 className={`text-sm font-semibold leading-tight ${
-                      isCurrent ? "text-primary" : "text-foreground"
-                    }`}>
-                      {step.title}
-                    </h4>
+                    <h4 className={`text-xs sm:text-sm font-semibold leading-tight ${
+  isCurrent ? "text-primary" : "text-foreground"
+}`}>
+  {step.title}
+</h4>
                   </div>
                 </div>
               );
@@ -797,43 +798,48 @@ export default function ProfileBuilder() {
         </motion.div>
 
         <motion.div 
-          className="flex justify-between" 
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          transition={{ duration: 0.3, delay: 0.3 }}
-        >
-          <button
-            onClick={prevStep}
-            disabled={currentStepIndex === 0}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-180 ${
-              currentStepIndex === 0
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-card border border-border hover:bg-card-hover hover-lift press-effect"
-            }`}>
-            <ArrowLeft className="h-5 w-5" />
-            Previous
-          </button>
+  className="flex justify-between items-center gap-3 pb-4" 
+  initial={{ opacity: 0, y: 20 }} 
+  animate={{ opacity: 1, y: 0 }} 
+  transition={{ duration: 0.3, delay: 0.3 }}
+>
+  <button
+    onClick={prevStep}
+    disabled={currentStepIndex === 0}
+    className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-180 text-sm sm:text-base ${
+      currentStepIndex === 0
+        ? "bg-muted text-muted-foreground cursor-not-allowed"
+        : "bg-card border border-border hover:bg-card-hover hover-lift press-effect"
+    }`}>
+    <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+    <span className="hidden sm:inline">Previous</span>
+  </button>
 
-          <button
-            onClick={isProfileComplete && currentStepIndex >= steps.length ? () => navigate("/dashboard") : nextStep}
-            disabled={isSaving || isValidating}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-180 ${
-              isSaving || isValidating
-                ? "bg-muted text-muted-foreground cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover-lift press-effect"
-            }`}>
-            {isSaving
-              ? "Saving..."
-              : isValidating
-              ? "Validating..."
-              : (isProfileComplete && currentStepIndex >= steps.length)
-              ? "Go to Dashboard"
-              : currentStepIndex === steps.length - 1
-              ? "Complete Profile"
-              : "Next"}
-            <ArrowRight className="h-5 w-5" />
-          </button>
-        </motion.div>
+  <button
+    onClick={isProfileComplete && currentStepIndex >= steps.length ? () => navigate("/dashboard") : nextStep}
+    disabled={isSaving || isValidating}
+    className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl font-medium transition-all duration-180 text-sm sm:text-base ${
+      isSaving || isValidating
+        ? "bg-muted text-muted-foreground cursor-not-allowed"
+        : "bg-primary text-primary-foreground hover-lift press-effect"
+    }`}>
+    <span className="hidden sm:inline">
+      {isSaving
+        ? "Saving..."
+        : isValidating
+        ? "Validating..."
+        : (isProfileComplete && currentStepIndex >= steps.length)
+        ? "Go to Dashboard"
+        : currentStepIndex === steps.length - 1
+        ? "Complete Profile"
+        : "Next"}
+    </span>
+    <span className="sm:hidden">
+      {isSaving || isValidating ? "..." : "Next"}
+    </span>
+    <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
+  </button>
+</motion.div>
       </div>
     </div>
   );

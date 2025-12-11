@@ -503,11 +503,14 @@ export function AppLayout() {
           </button>
 
           <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-            <CountryToggle
-              value={selectedCountry}
-              onChange={setSelectedCountry}
-              disabled={isCountryToggleDisabled}
-            />
+            {!location.pathname.startsWith("/universities") && (
+  <CountryToggle
+    value={selectedCountry}
+    onChange={setSelectedCountry}
+    disabled={isCountryToggleDisabled}
+  />
+)}
+
 
             {/* Notifications */}
             <div className="relative">

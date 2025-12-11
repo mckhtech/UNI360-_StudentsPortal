@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import {
   Plus,
   Clock,
@@ -399,6 +399,7 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
 
 export default function Applications() {
   const navigate = useNavigate();
+  const { selectedCountry: navbarCountry } = useOutletContext<{ selectedCountry: "DE" | "UK" }>();
 
   const [selectedCountry, setSelectedCountry] = useState<CountryTab>("ALL");
   const [applications, setApplications] = useState<any[]>([]);
@@ -436,7 +437,12 @@ useEffect(() => {
   loadApplications();
 }, [selectedCountry]);
 
-
+// Sync with navbar country toggle
+useEffect(() => {
+  if (navbarCountry) {
+    setSelectedCountry(navbarCountry);
+  }
+}, [navbarCountry]);
 
   const loadApplications = async (silent = false) => {
   if (!silent) {
@@ -566,7 +572,7 @@ useEffect(() => {
       })
     );
 
-    console.log('✅ Enriched applications:', enriched);
+    console.log('âœ… Enriched applications:', enriched);
     setApplications(enriched);
     
     // Update the count for whichever tab is currently selected
@@ -579,7 +585,7 @@ if (countryCode === undefined) {
 }
     
   } catch (err) {
-    console.error("❌ Error loading applications:", err);
+    console.error("âŒ Error loading applications:", err);
     setError("Failed to load applications. Please check your connection.");
   } finally {
     setLoading(false);
@@ -726,7 +732,7 @@ const openSubmitModal = (appId: string) => {
     return (
       <motion.div className="space-y-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <div className="text-center py-12">
-          <div className="text-4xl mb-4">⚠️</div>
+          <div className="text-4xl mb-4">âš ï¸</div>
           <h3 className="font-bold text-xl text-[#2C3539] mb-2">Something went wrong</h3>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
@@ -989,7 +995,7 @@ const IconComp = conf.icon;
                                 <p className="text-blue-900 font-medium mb-1">Workflow Status</p>
                                 <div className="space-y-1 text-blue-700">
                                   {application.workflowProgress.requiresStudentAction && (
-                                    <p className="font-medium">⚠️ Action required from your side</p>
+                                    <p className="font-medium">âš ï¸ Action required from your side</p>
                                   )}
                                   <p>
                                     Pending tasks: {application.workflowProgress.pendingTasks || 0}
