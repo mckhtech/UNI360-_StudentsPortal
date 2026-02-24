@@ -11,13 +11,13 @@ const apiRequest = async (endpoint, options = {}) => {
   const url = `${BASE_URL}${endpoint}`;
   
   const config = {
-    method: options.method || 'GET',
-    body: options.body ? JSON.stringify(options.body) : undefined,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  };
+  method: options.method || 'GET',
+  body: options.body,  // ✅ JUST PASS IT AS-IS
+  headers: {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  },
+};
 
   try {
     console.log(`[StudentProfile] API Request: ${config.method} ${endpoint}`);
@@ -305,28 +305,27 @@ export const updateApplication = async (applicationId, updateData) => {
   }
 };
 
-export const submitApplication = async (applicationId, submissionData) => {
-  try {
-    if (!applicationId) throw new Error('Application ID is required');
-    if (!submissionData.confirmationStatement) throw new Error('Confirmation statement is required');
-    if (!submissionData.agreeToTerms) throw new Error('You must agree to the terms and conditions');
-
-    const payload = {
-      confirmationStatement: submissionData.confirmationStatement,
-      agreeToTerms: submissionData.agreeToTerms,
-      additionalNotes: submissionData.additionalNotes || '',
-    };
-
-    console.log('Submitting application:', applicationId, payload);
-    const response = await apiRequest(`/api/v1/students/applications/${applicationId}/submit`, {
-      method: 'POST',
-      body: payload,
-    });
-    return response;
-  } catch (error) {
-    console.error(`Error submitting application ${applicationId}:`, error);
-    throw handleApiError(error);
-  }
+export const submitApplication = async (applicationId, submissionData = {}) => {
+  // NO validation - let backend handle it
+  
+  const payload = {
+    confirmationStatement: submissionData.confirmationStatement || "",
+    agreeToTerms: submissionData.agreeToTerms !== undefined ? submissionData.agreeToTerms : true,  // ← Default to true
+    additionalNotes: submissionData.additionalNotes || "",
+    territory: submissionData.territory || "",
+    degreeLevel: submissionData.degreeLevel || ""
+  };
+  
+  console.log('=== SUBMITTING APPLICATION ===');
+  console.log('Application ID:', applicationId);
+  console.log('Payload (matching Postman):', JSON.stringify(payload, null, 2));
+  
+  const response = await apiRequest(`/api/v1/students/applications/${applicationId}/submit`, {
+    method: 'POST',
+    body: payload,
+  });
+  
+  return response;
 };
 
 export const getApplicationProgress = async (applicationId) => {

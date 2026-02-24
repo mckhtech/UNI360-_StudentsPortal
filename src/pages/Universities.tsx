@@ -74,7 +74,9 @@ const CourseModal = ({
   setSelectedUniversity, 
   setIsPaymentModalOpen, 
   setIsFormModalOpen,
-  fetchAndProcessProfile  // Add this new prop
+  fetchAndProcessProfile,
+  checkProfileCompletion,  // ADD THIS
+  setShowProfileIncompleteModal  // ADD THIS
 }) => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -235,16 +237,39 @@ const handleApplyNow = async (course) => {
     return;
   }
   
-  // Fetch profile data before opening form
-  console.log('Fetching profile data...');
-  await fetchAndProcessProfile();
-  
-  // CRITICAL: Store course and university in parent state
+  // CRITICAL: Store course and university in parent state FIRST
   console.log('Setting selectedCourse and selectedUniversity...');
   setSelectedCourse(course);
   setSelectedUniversity(university);
   
-  // IMPORTANT: Close course modal first
+  // Check if profile is complete
+  console.log('Checking profile completion...');
+  const isComplete = await checkProfileCompletion();
+  
+  if (!isComplete) {
+    // Store the course and university for return after profile completion
+    sessionStorage.setItem('returnToUniversity', JSON.stringify({
+      universityId: university.id,
+      universityName: university.name,
+      courseId: course.id,
+      courseName: course.name,
+      timestamp: Date.now()
+    }));
+    
+    // Close course modal
+    console.log('Profile incomplete, showing profile modal...');
+    onClose();
+    
+    // Show profile incomplete modal
+    setShowProfileIncompleteModal(true);
+    return;
+  }
+  
+  // Profile is complete, proceed normally
+  console.log('Profile complete, fetching profile data...');
+  await fetchAndProcessProfile();
+  
+  // Close course modal first
   console.log('Closing course modal...');
   onClose();
   
@@ -2812,6 +2837,8 @@ navigate("/applications");
   setIsPaymentModalOpen={setIsPaymentModalOpen}
   setIsFormModalOpen={setIsFormModalOpen}
   fetchAndProcessProfile={fetchAndProcessProfile}
+   checkProfileCompletion={checkProfileCompletion}
+   setShowProfileIncompleteModal={setShowProfileIncompleteModal}  // ADD THIS
 />
 
 {/* Dynamic Application Form Modal - Opens Second */}

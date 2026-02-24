@@ -642,14 +642,7 @@ export default function ProfileBuilder() {
           })}
         </div>
 
-        <div className="text-center pt-6">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="bg-primary text-primary-foreground px-8 py-4 rounded-xl hover-lift press-effect font-medium text-lg"
-          >
-            Go to Dashboard
-          </button>
-        </div>
+       
       </motion.div>
     );
   };

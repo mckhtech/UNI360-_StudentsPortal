@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,8 +41,31 @@ import {
   Plus,
   Minus
 } from "lucide-react";
+import { getStudentProfile } from "@/services/studentProfile";
+import { useAuth } from "@/contexts/AuthContext";
+import { getAuthHeaders, makeAuthenticatedRequest } from "@/services/tokenService";
+
+// n8n SOP Generator Configuration
+// n8n Configuration - Add at the top of AITools.tsx (around line 30)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.uniflow.kartonmeister.com';
+
+const N8N_CONFIG = {
+  sop: {
+    webhookUrl: `${API_BASE_URL}/api/v1/ai/sop/generate`,
+    timeout: 120000,
+  },
+  lor: {
+    webhookUrl: `${API_BASE_URL}/api/v1/ai/lor/generate`,
+    timeout: 120000,
+  },
+  cover: {
+    webhookUrl: `${API_BASE_URL}/api/v1/ai/cover-letter/generate`,
+    timeout: 120000,
+  }
+};
 
 const AITools = () => {
+  const { user } = useAuth();
   const [selectedTool, setSelectedTool] = useState(null);
   const [generationStep, setGenerationStep] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -55,6 +78,9 @@ const AITools = () => {
   const [educationEntries, setEducationEntries] = useState([{ institution: '', degree: '', year: '', grade: '' }]);
   const [languages, setLanguages] = useState([{ language: '', proficiency: 'Basic' }]);
   const [skills, setSkills] = useState(['']);
+  const [sopType, setSopType] = useState(''); // Add this line
+  const [generatedContent, setGeneratedContent] = useState(null);
+  const [generationError, setGenerationError] = useState(null);
 
   // Enhanced AI tools data
   const aiTools = [
@@ -80,20 +106,20 @@ const AITools = () => {
       color: "bg-green-100 text-green-600",
       bgGradient: "from-green-500 to-green-600",
       price: "₹299",
-      isPremium: false
+      isPremium: true
     },
     {
-      id: 'cv',
-      name: "CV/Resume Builder",
-      title: 'CV/Resume Builder',
-      description: "Build ATS-friendly resumes optimized for international applications",
-      icon: Briefcase,
-      features: ["ATS optimization", "Europass format", "Skills highlighting", "Export options"],
-      color: "bg-purple-100 text-purple-600",
-      bgGradient: "from-purple-500 to-purple-600",
-      price: "₹399",
-      isPremium: true
-    }
+  id: 'cover',
+  name: "Cover Letter Generator",
+  title: 'Professional Cover Letter Generator',
+  description: "Create compelling cover letters tailored to your job applications",
+  icon: FileText,
+  features: ["Job-specific customization", "Multiple formats", "Real-time preview", "Export options"],
+  color: "bg-purple-100 text-purple-600",
+  bgGradient: "from-purple-500 to-purple-600",
+  price: "₹399",
+  isPremium: true
+}
   ];
 
   // Mock generation history
@@ -156,45 +182,288 @@ const AITools = () => {
     show: { scale: 1, opacity: 1 }
   };
 
-  const startGeneration = (toolId) => {
-    const tool = aiTools.find(t => t.id === toolId);
+  // Load profile data when SOP tool is selected
+// Load profile data when SOP, LOR, or Cover Letter tool is selected
+useEffect(() => {
+  if ((selectedTool === 'lor' || selectedTool === 'cover') && generationStep === 1) {
+    loadProfileData();
+  }
+}, [selectedTool, generationStep]);
+
+// n8n SOP Generator API Integration
+const generateSOPWithN8N = async (formData) => {
+  try {
+    console.log('[SOP Generator] Starting generation with API...');
+
+    const result = await makeAuthenticatedRequest(N8N_CONFIG.sop.webhookUrl, {
+      method: 'POST',
+      body: {}, // Empty body - API uses profile data
+    });
+
+    console.log('[SOP Generator] Success:', result);
+
+    return {
+      success: true,
+      text: result.data?.generatedSop || result.generatedSop || '',
+      wordCount: (result.data?.generatedSop || result.generatedSop || '').split(/\s+/).length
+    };
+
+  } catch (error) {
+    console.error('[SOP Generator] Error:', error);
+    throw error;
+  }
+};
+
+// n8n LOR Generator API Integration
+const generateLORWithN8N = async (formData) => {
+  try {
+    console.log('[LOR Generator] Starting generation with API...');
+    console.log('[LOR Generator] Form data:', formData);
+
+    const requestPayload = {
+      seniorName: formData.seniorName || ''
+    };
+
+    console.log('[LOR Generator] Request payload:', requestPayload);
+
+    const result = await makeAuthenticatedRequest(N8N_CONFIG.lor.webhookUrl, {
+      method: 'POST',
+      body: requestPayload,
+    });
+
+    console.log('[LOR Generator] Success:', result);
+
+    return {
+      success: true,
+      text: result.data?.generatedLor || result.generatedLor || '',
+      wordCount: (result.data?.generatedLor || result.generatedLor || '').split(/\s+/).length
+    };
+
+  } catch (error) {
+    console.error('[LOR Generator] Error:', error);
+    throw error;
+  }
+};
+
+// n8n Cover Letter Generator API Integration
+const generateCoverLetterWithN8N = async (formData) => {
+  try {
+    console.log('[Cover Letter Generator] Starting generation with API...');
+    console.log('[Cover Letter Generator] Form data:', formData);
+
+    const requestPayload = {
+      studentName: formData.studentName || '',
+      passportNumber: formData.passportNumber || '',
+      universityName: formData.universityName || '',
+      universityLocation: formData.universityLocation || '',
+      courseName: formData.courseName || '',
+      courseDuration: formData.courseDuration || '',
+      courseStartDate: formData.courseStartDate || '',
+      tuitionFees: formData.tuitionFees || '',
+      blockedAccountBank: formData.blockedAccountBank || '',
+      blockedAccountBalance: formData.blockedAccountBalance || '',
+      sponsorName: formData.sponsorName || '',
+      sscSchool: formData.sscSchool || '',
+      sscYear: formData.sscYear || '',
+      sscMarks: formData.sscMarks || '',
+      hscInstitution: formData.hscInstitution || '',
+      hscYear: formData.hscYear || '',
+      hscMarks: formData.hscMarks || '',
+      bachelorsUniversity: formData.bachelorsUniversity || '',
+      bachelorsCourse: formData.bachelorsCourse || '',
+      bachelorsCgpa: formData.bachelorsCgpa || ''
+    };
+
+    console.log('[Cover Letter Generator] Request payload:', requestPayload);
+
+    const result = await makeAuthenticatedRequest(N8N_CONFIG.cover.webhookUrl, {
+      method: 'POST',
+      body: requestPayload,
+    });
+
+    console.log('[Cover Letter Generator] Success:', result);
+
+    return {
+      success: true,
+      text: result.data?.generatedCoverLetter || result.generatedCoverLetter || '',
+      wordCount: (result.data?.generatedCoverLetter || result.generatedCoverLetter || '').split(/\s+/).length
+    };
+
+  } catch (error) {
+    console.error('[Cover Letter Generator] Error:', error);
+    throw error;
+  }
+};
+
+const loadProfileData = async () => {
+  try {
+    const result = await makeAuthenticatedRequest('/api/v1/students/profile', {
+      method: 'GET',
+    });
+    
+    const profileData = result.data;
+    
+    // Map profile data to form fields for Cover Letter
+    if (selectedTool === 'cover') {
+      const mappedData = {
+        studentName: profileData.basic_info?.full_name || '',
+        passportNumber: profileData.basic_info?.passport_number || '',
+        courseName: profileData.automation_service?.bachelors_course || '',
+        universityName: profileData.automation_service?.target_university || '',
+        universityLocation: profileData.automation_service?.university_location || '',
+        courseDuration: profileData.automation_service?.course_duration || '',
+        courseStartDate: profileData.automation_service?.course_start_date || '',
+        tuitionFees: profileData.automation_service?.tuition_fees || '',
+        blockedAccountBank: profileData.automation_service?.blocked_account_bank || '',
+        blockedAccountBalance: profileData.automation_service?.blocked_account_balance || '',
+        sponsorName: profileData.automation_service?.sponsor_name || '',
+        sscSchool: profileData.automation_service?.ssc_school || '',
+        sscYear: profileData.automation_service?.ssc_year || '',
+        sscMarks: profileData.automation_service?.ssc_marks || '',
+        hscInstitution: profileData.automation_service?.hsc_institution || '',
+        hscYear: profileData.automation_service?.hsc_year || '',
+        hscMarks: profileData.automation_service?.hsc_marks || '',
+        bachelorsUniversity: profileData.automation_service?.bachelors_university || '',
+        bachelorsCourse: profileData.automation_service?.bachelors_course || '',
+        bachelorsCgpa: profileData.automation_service?.bachelors_cgpa || '',
+      };
+      
+      setFormData(mappedData);
+    }
+  } catch (error) {
+    console.error('Error loading profile data:', error);
+    alert('Failed to load profile data. Please check if you are logged in.');
+  }
+};
+const startGeneration = (toolId) => {
+  const tool = aiTools.find(t => t.id === toolId);
+  setSelectedTool(toolId);
+  setIsMobileMenuOpen(false);
+  
+  // SOP has no form, go directly to payment
+  if (toolId === 'sop') {
     if (tool.isPremium && !paymentStatus[toolId]) {
-      // Show payment modal first
-      setSelectedTool(toolId);
       setGenerationStep(0.5); // Payment step
     } else {
-      setSelectedTool(toolId);
-      setGenerationStep(1);
+      // Already paid or not premium, start generation directly
+      setGenerationStep(2); // Loading step
+      setTimeout(() => simulateGeneration(), 100);
     }
-    setIsMobileMenuOpen(false);
-  };
+  } else {
+    // LOR and Cover Letter have forms, go to step 1
+    setGenerationStep(1);
+  }
+};
 
   const handlePayment = () => {
-    // Simulate payment process
-    setPaymentStatus(prev => ({ ...prev, [selectedTool]: true }));
+  // Mark as paid
+  setPaymentStatus(prev => ({ ...prev, [selectedTool]: true }));
+  
+  // If SOP, start generation immediately after payment
+  if (selectedTool === 'sop') {
+    setGenerationStep(2); // Go to loading
+    setTimeout(() => simulateGeneration(), 100);
+  } else {
+    // For LOR and Cover Letter, go to form
     setGenerationStep(1);
-  };
+  }
+};
 
-  const simulateGeneration = () => {
-    setIsGenerating(true);
-    setGenerationStep(2);
-    // Simulate AI generation process
-    setTimeout(() => {
-      setIsGenerating(false);
-      setGenerationStep(3);
-    }, 3000);
-  };
+  const simulateGeneration = async () => {
+  setIsGenerating(true);
+  setGenerationError(null); // Clear previous errors
+  
+  try {
+    console.log('[AITools] Starting generation for tool:', selectedTool);
+    console.log('[AITools] Form data:', formData);
+    
+    let result;
+    
+    // Call the appropriate generation function based on selected tool
+    if (selectedTool === 'sop') {
+      result = await generateSOPWithN8N(formData);
+    } else if (selectedTool === 'lor') {
+      result = await generateLORWithN8N(formData);
+    } else if (selectedTool === 'cover') {
+      result = await generateCoverLetterWithN8N(formData);
+    }
+    
+    console.log('[AITools] Generation result:', result);
+    
+    // Only proceed to step 3 if we got a successful result
+    // Only proceed to step 3 if we got a successful result
+if (result && result.success) {
+  setGeneratedContent(result);
+  
+  // Wait for 1 minute (60 seconds) before showing output screen
+  setTimeout(() => {
+    setIsGenerating(false);
+    setGenerationStep(3);
+  }, 40000); // 60000 milliseconds = 60 seconds = 1 minute
+  
+} else {
+  throw new Error('Generation failed - no content received');
+}
+    
+  } catch (error) {
+    console.error('[AITools] Generation error:', error);
+    setIsGenerating(false);
+    setGenerationError(error.message || 'Failed to generate document. Please try again.');
+    
+    // Don't auto-navigate - let user see error and retry
+  }
+};
 
   const resetGeneration = () => {
-    setSelectedTool(null);
-    setGenerationStep(0);
-    setIsGenerating(false);
-    setFormData({});
-  };
+  setSelectedTool(null);
+  setGenerationStep(0);
+  setIsGenerating(false);
+  setFormData({});
+  setSopType('');
+  setGeneratedContent(null);
+};
 
   const updateFormData = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+  setFormData(prev => {
+    const updated = { ...prev, [field]: value };
+    
+    // Clear Bachelor's fields when checkbox is unchecked
+    if (field === 'hasBachelors' && !value) {
+      delete updated.bachelorsUniversityName;
+      delete updated.bachelorsCourseName;
+      delete updated.bachelorsStartDate;
+      delete updated.bachelorsEndDate;
+      delete updated.bachelorsCGPA;
+    }
+    
+    // Clear Master's fields when checkbox is unchecked
+    if (field === 'hasMasters' && !value) {
+      delete updated.mastersUniversityName;
+      delete updated.mastersCourseName;
+      delete updated.mastersStartDate;
+      delete updated.mastersEndDate;
+      delete updated.mastersCGPA;
+    }
+    
+    // Clear HSC fields when switching to Diploma
+    if (field === 'afterSSCType' && value === 'diploma') {
+      delete updated.hscSchoolName;
+      delete updated.hscPassingDate;
+      delete updated.hscMarks;
+    }
+    
+    // Clear Diploma fields when switching to HSC
+    if (field === 'afterSSCType' && value === 'hsc') {
+      delete updated.diplomaUniversityName;
+      delete updated.diplomaCourseName;
+      delete updated.diplomaStartDate;
+      delete updated.diplomaEndDate;
+      delete updated.diplomaCGPA;
+    }
+    
+    return updated;
+  });
+};
 
   const addArrayItem = (arrayName, newItem) => {
     switch (arrayName) {
@@ -303,14 +572,19 @@ const AITools = () => {
           ))}
         </div>
 
-        <Button
-          onClick={handlePayment}
-          className="px-8 py-3 bg-green-600 hover:bg-green-700"
-          size="lg"
-        >
-          <CreditCard size={16} className="mr-2" />
-          Pay with Razorpay
-        </Button>
+      
+
+<Button
+  onClick={() => {
+    handlePayment(); // Mark as paid
+    setGenerationStep(2); // Go to generation
+  }}
+  className="px-8 py-3 bg-green-600 hover:bg-green-700"
+  size="lg"
+>
+  <CreditCard size={16} className="mr-2" />
+  Pay with Razorpay
+</Button>
 
         <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
           <Shield size={12} />
@@ -321,596 +595,319 @@ const AITools = () => {
   };
 
   const renderSOPForm = () => (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="space-y-6"
-    >
-      <h3 className="text-lg font-semibold">Statement of Purpose Details</h3>
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    className="space-y-6 text-center py-8"
+  >
+    <div className="flex justify-center mb-4">
+      <div className={`p-4 rounded-full bg-gradient-to-r ${aiTools.find(t => t.id === 'sop')?.bgGradient}`}>
+        <FileText className="text-white" size={32} />
+      </div>
+    </div>
+    <h3 className="text-xl font-semibold">Generate Statement of Purpose</h3>
+    <p className="text-gray-600 dark:text-gray-400">
+      Your SOP will be automatically generated using your profile information.
+    </p>
+    <p className="text-sm text-gray-500 dark:text-gray-500">
+      Click "Generate SOP" below to proceed.
+    </p>
+  </motion.div>
+);
+
+ const renderLORForm = () => (
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    className="space-y-6"
+  >
+    <h3 className="text-lg font-semibold">Letter of Recommendation Details</h3>
+    
+    <div className="border-t pt-6">
+      <h4 className="font-semibold mb-4 text-primary">Senior Information</h4>
       
-      {/* University and Program */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium mb-1">Name of Senior Writing LOR *</label>
+        <input
+          type="text"
+          placeholder="e.g., Dr. Priya Venkatesh"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+          value={formData.seniorName || ''}
+          onChange={(e) => updateFormData('seniorName', e.target.value)}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Enter the full name and title of the person writing the recommendation
+        </p>
+      </div>
+    </div>
+  </motion.div>
+);
+ const renderCoverLetterForm = () => (
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    className="space-y-6"
+  >
+    <h3 className="text-lg font-semibold">Cover Letter Details</h3>
+
+    {/* Student Information */}
+    <div className="border-t pt-6">
+      <h4 className="font-semibold mb-4 text-primary">Student Information</h4>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Target University *</label>
+          <label className="block text-sm font-medium mb-1">Student Name *</label>
           <input
             type="text"
-            placeholder="e.g., Technical University of Munich"
+            placeholder="Enter your full name"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.university || ''}
-            onChange={(e) => updateFormData('university', e.target.value)}
+            value={formData.studentName || ''}
+            onChange={(e) => updateFormData('studentName', e.target.value)}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Program *</label>
+          <label className="block text-sm font-medium mb-1">Passport Number *</label>
+          <input
+            type="text"
+            placeholder="e.g., A1234567"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.passportNumber || ''}
+            onChange={(e) => updateFormData('passportNumber', e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+
+    {/* Course Information */}
+    <div className="border-t pt-6">
+      <h4 className="font-semibold mb-4 text-primary">Course Information</h4>
+      
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Course Name *</label>
           <input
             type="text"
             placeholder="e.g., MSc Computer Science"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.program || ''}
-            onChange={(e) => updateFormData('program', e.target.value)}
+            value={formData.courseName || ''}
+            onChange={(e) => updateFormData('courseName', e.target.value)}
           />
         </div>
-      </div>
-
-      {/* Academic Background */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Academic Background *</label>
-        <textarea
-          placeholder="Describe your educational background, GPA, major subjects, academic achievements..."
-          rows={4}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.academicBackground || ''}
-          onChange={(e) => updateFormData('academicBackground', e.target.value)}
-        />
-      </div>
-
-      {/* Career Goals */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Career Goals & Future Plans *</label>
-        <div className="space-y-2">
-          <textarea
-            placeholder="Describe your short-term and long-term career goals..."
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.careerGoals || ''}
-            onChange={(e) => updateFormData('careerGoals', e.target.value)}
-          />
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => updateFormData('careerGoals', 'AI will generate compelling career goals based on your profile and target program.')}
-            >
-              <Wand2 size={12} className="mr-1" />
-              Generate with AI
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Work Experience */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Professional Experience</label>
-        <textarea
-          placeholder="Describe your work experience, internships, projects, and achievements..."
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.workExperience || ''}
-          onChange={(e) => updateFormData('workExperience', e.target.value)}
-        />
-      </div>
-
-      {/* Why This University */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Why This University & Program? *</label>
-        <textarea
-          placeholder="Explain why you chose this specific university and program..."
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.whyUniversity || ''}
-          onChange={(e) => updateFormData('whyUniversity', e.target.value)}
-        />
-      </div>
-
-      {/* Financial Arrangements */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Financial Arrangements *</label>
-          <select 
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.financialArrangement || ''}
-            onChange={(e) => updateFormData('financialArrangement', e.target.value)}
-          >
-            <option value="">Select funding source</option>
-            <option value="self-funded">Self-funded</option>
-            <option value="scholarship">Scholarship</option>
-            <option value="loan">Education Loan</option>
-            <option value="sponsorship">Family/Company Sponsorship</option>
-            <option value="mixed">Mixed Funding</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Estimated Budget</label>
+          <label className="block text-sm font-medium mb-1">University Name *</label>
           <input
             type="text"
-            placeholder="e.g., €20,000 per year"
+            placeholder="e.g., Technical University of Munich"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.budget || ''}
-            onChange={(e) => updateFormData('budget', e.target.value)}
+            value={formData.universityName || ''}
+            onChange={(e) => updateFormData('universityName', e.target.value)}
           />
         </div>
       </div>
 
-      {/* Family Background */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Family Background & Support</label>
-        <textarea
-          placeholder="Describe your family background and their support for your education..."
-          rows={2}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.familyBackground || ''}
-          onChange={(e) => updateFormData('familyBackground', e.target.value)}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">University Location *</label>
+          <input
+            type="text"
+            placeholder="City, Country"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.universityLocation || ''}
+            onChange={(e) => updateFormData('universityLocation', e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Course Duration *</label>
+          <input
+            type="text"
+            placeholder="e.g., 2 years"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.courseDuration || ''}
+            onChange={(e) => updateFormData('courseDuration', e.target.value)}
+          />
+        </div>
       </div>
 
-      {/* Research Interests */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Research Interests (Optional)</label>
-        <textarea
-          placeholder="Describe your research interests and any specific areas you want to explore..."
-          rows={2}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.researchInterests || ''}
-          onChange={(e) => updateFormData('researchInterests', e.target.value)}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Course Start Date</label>
+          <input
+            type="text"
+            placeholder="e.g., October 2024"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.courseStartDate || ''}
+            onChange={(e) => updateFormData('courseStartDate', e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Tuition Fees *</label>
+          <input
+            type="text"
+            placeholder="e.g., €15,000 or 0 (if free)"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.tuitionFees || ''}
+            onChange={(e) => updateFormData('tuitionFees', e.target.value)}
+          />
+        </div>
       </div>
-    </motion.div>
-  );
+    </div>
 
-  const renderLORForm = () => (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="space-y-6"
-    >
-      <h3 className="text-lg font-semibold">Letter of Recommendation Details</h3>
+    {/* Financial Information */}
+    <div className="border-t pt-6">
+      <h4 className="font-semibold mb-4 text-primary">Financial Information</h4>
       
-      {/* Recommender Information */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Recommender Name *</label>
+          <label className="block text-sm font-medium mb-1">Blocked Account Bank *</label>
           <input
             type="text"
-            placeholder="Dr. Jane Smith"
+            placeholder="e.g., Deutsche Bank"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.recommenderName || ''}
-            onChange={(e) => updateFormData('recommenderName', e.target.value)}
+            value={formData.blockedAccountBank || ''}
+            onChange={(e) => updateFormData('blockedAccountBank', e.target.value)}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Recommender Title *</label>
+          <label className="block text-sm font-medium mb-1">Blocked Account Balance *</label>
           <input
             type="text"
-            placeholder="Professor of Computer Science"
+            placeholder="e.g., 11,208 EUR"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.recommenderTitle || ''}
-            onChange={(e) => updateFormData('recommenderTitle', e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Relationship with Recommender */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Relationship with Recommender *</label>
-        <select 
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.relationship || ''}
-          onChange={(e) => updateFormData('relationship', e.target.value)}
-        >
-          <option value="">Select relationship</option>
-          <option value="professor">Professor/Academic Advisor</option>
-          <option value="supervisor">Work Supervisor</option>
-          <option value="mentor">Research Mentor</option>
-          <option value="manager">Project Manager</option>
-          <option value="director">Department Head/Director</option>
-        </select>
-      </div>
-
-      {/* Duration of Relationship */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Duration of Relationship *</label>
-          <input
-            type="text"
-            placeholder="e.g., 2 years (2022-2024)"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.duration || ''}
-            onChange={(e) => updateFormData('duration', e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Context of Interaction *</label>
-          <input
-            type="text"
-            placeholder="e.g., Advanced Algorithms Course"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.context || ''}
-            onChange={(e) => updateFormData('context', e.target.value)}
+            value={formData.blockedAccountBalance || ''}
+            onChange={(e) => updateFormData('blockedAccountBalance', e.target.value)}
           />
         </div>
       </div>
 
-      {/* Major Subjects at University */}
       <div>
-        <label className="block text-sm font-medium mb-1">Major Subjects in Current/Previous University *</label>
-        <textarea
-          placeholder="List your major subjects (e.g., Data Structures, Algorithms, Database Systems, Machine Learning...)"
-          rows={3}
+        <label className="block text-sm font-medium mb-1">Sponsor Name</label>
+        <input
+          type="text"
+          placeholder="e.g., Mr. Vijay Sharma (Father)"
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.majorSubjects || ''}
-          onChange={(e) => updateFormData('majorSubjects', e.target.value)}
+          value={formData.sponsorName || ''}
+          onChange={(e) => updateFormData('sponsorName', e.target.value)}
         />
       </div>
+    </div>
 
-      {/* Intended Major Subjects */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Major Subjects You Plan to Take *</label>
-        <textarea
-          placeholder="List the major subjects you plan to study in your target program..."
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.intendedSubjects || ''}
-          onChange={(e) => updateFormData('intendedSubjects', e.target.value)}
-        />
-      </div>
-
-      {/* Key Achievements */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Key Achievements & Strengths *</label>
-        <textarea
-          placeholder="Describe your academic achievements, projects, awards, leadership roles..."
-          rows={4}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.achievements || ''}
-          onChange={(e) => updateFormData('achievements', e.target.value)}
-        />
-      </div>
-
-      {/* Student Characteristics */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Student Characteristics & Skills</label>
-        <textarea
-          placeholder="Describe the student's personality, work ethic, analytical skills, teamwork abilities..."
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.characteristics || ''}
-          onChange={(e) => updateFormData('characteristics', e.target.value)}
-        />
-      </div>
-
-      {/* Specific Examples */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Specific Examples/Projects</label>
-        <textarea
-          placeholder="Provide specific examples of work, projects, or situations that showcase the student's abilities..."
-          rows={3}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-          value={formData.examples || ''}
-          onChange={(e) => updateFormData('examples', e.target.value)}
-        />
-      </div>
-    </motion.div>
-  );
-
-  const renderCVForm = () => (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="space-y-6"
-    >
-      <h3 className="text-lg font-semibold">CV/Resume Builder (Europass Format)</h3>
+    {/* Education Information */}
+    <div className="border-t pt-6">
+      <h4 className="font-semibold mb-4 text-primary">Education Background</h4>
       
-      {/* Personal Information */}
-      <div className="space-y-4">
-        <h4 className="font-medium text-blue-600">Personal Information</h4>
+      {/* SSC */}
+      <div className="mb-4">
+        <h5 className="font-medium mb-2 text-sm">SSC (10th Grade)</h5>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Full Name *</label>
+            <label className="block text-sm font-medium mb-1">School Name</label>
             <input
               type="text"
-              placeholder="John Doe"
+              placeholder="School name"
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-              value={formData.address || ''}
-              onChange={(e) => updateFormData('address', e.target.value)}
+              value={formData.sscSchool || ''}
+              onChange={(e) => updateFormData('sscSchool', e.target.value)}
             />
           </div>
-        </div>
-      </div>
-
-      {/* Professional Summary */}
-      <div>
-        <h4 className="font-medium text-blue-600 mb-2">Professional Summary</h4>
-        <div className="space-y-2">
-          <textarea
-            placeholder="Write a brief professional summary (2-3 sentences)..."
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.summary || ''}
-            onChange={(e) => updateFormData('summary', e.target.value)}
-          />
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => updateFormData('summary', 'AI will generate a compelling professional summary based on your experience and skills.')}
-            >
-              <Wand2 size={12} className="mr-1" />
-              Generate with AI
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Work Experience */}
-      <div>
-        <h4 className="font-medium text-blue-600 mb-2">Work Experience</h4>
-        {workExperiences.map((exp, index) => (
-          <div key={index} className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg mb-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Experience {index + 1}</span>
-              {workExperiences.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeArrayItem('workExperiences', index)}
-                >
-                  <Minus size={14} />
-                </Button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Company Name"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={exp.company}
-                onChange={(e) => updateArrayItem('workExperiences', index, 'company', e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Position/Role"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={exp.position}
-                onChange={(e) => updateArrayItem('workExperiences', index, 'position', e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Duration (e.g., Jan 2022 - Dec 2023)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={exp.duration}
-                onChange={(e) => updateArrayItem('workExperiences', index, 'duration', e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Location"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={exp.location}
-                onChange={(e) => updateArrayItem('workExperiences', index, 'location', e.target.value)}
-              />
-            </div>
-            <textarea
-              placeholder="Job description and key achievements..."
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-              value={exp.description}
-              onChange={(e) => updateArrayItem('workExperiences', index, 'description', e.target.value)}
-            />
-          </div>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => addArrayItem('workExperiences', { company: '', position: '', duration: '', location: '', description: '' })}
-          className="w-full"
-        >
-          <Plus size={14} className="mr-1" />
-          Add Work Experience
-        </Button>
-      </div>
-
-      {/* Education */}
-      <div>
-        <h4 className="font-medium text-blue-600 mb-2">Education</h4>
-        {educationEntries.map((edu, index) => (
-          <div key={index} className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg mb-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">Education {index + 1}</span>
-              {educationEntries.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeArrayItem('educationEntries', index)}
-                >
-                  <Minus size={14} />
-                </Button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Institution Name"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={edu.institution}
-                onChange={(e) => updateArrayItem('educationEntries', index, 'institution', e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Degree/Qualification"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={edu.degree}
-                onChange={(e) => updateArrayItem('educationEntries', index, 'degree', e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Year/Duration"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={edu.year}
-                onChange={(e) => updateArrayItem('educationEntries', index, 'year', e.target.value)}
-              />
-              <input
-                type="text"
-                placeholder="Grade/GPA"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={edu.grade}
-                onChange={(e) => updateArrayItem('educationEntries', index, 'grade', e.target.value)}
-              />
-            </div>
-          </div>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => addArrayItem('educationEntries', { institution: '', degree: '', year: '', grade: '' })}
-          className="w-full"
-        >
-          <Plus size={14} className="mr-1" />
-          Add Education
-        </Button>
-      </div>
-
-      {/* Skills */}
-      <div>
-        <h4 className="font-medium text-blue-600 mb-2">Skills & Competencies</h4>
-        <div className="space-y-2">
-          {skills.map((skill, index) => (
-            <div key={index} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="e.g., JavaScript, Project Management, Data Analysis"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-                value={skill}
-                onChange={(e) => updateArrayItem('skills', index, null, e.target.value)}
-              />
-              {skills.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeArrayItem('skills', index)}
-                >
-                  <Minus size={14} />
-                </Button>
-              )}
-            </div>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => addArrayItem('skills', '')}
-            className="w-full"
-          >
-            <Plus size={14} className="mr-1" />
-            Add Skill
-          </Button>
-        </div>
-      </div>
-
-      {/* Languages */}
-      <div>
-        <h4 className="font-medium text-blue-600 mb-2">Language Skills</h4>
-        {languages.map((lang, index) => (
-          <div key={index} className="flex gap-2 mb-2">
+          <div>
+            <label className="block text-sm font-medium mb-1">Year</label>
             <input
               type="text"
-              placeholder="Language (e.g., English)"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-              value={lang.language}
-              onChange={(e) => updateArrayItem('languages', index, 'language', e.target.value)}
+              placeholder="e.g., 2016"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+              value={formData.sscYear || ''}
+              onChange={(e) => updateFormData('sscYear', e.target.value)}
             />
-            <select
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-              value={lang.proficiency}
-              onChange={(e) => updateArrayItem('languages', index, 'proficiency', e.target.value)}
-            >
-              <option value="Basic">Basic (A1-A2)</option>
-              <option value="Independent">Independent (B1-B2)</option>
-              <option value="Proficient">Proficient (C1-C2)</option>
-              <option value="Native">Native</option>
-            </select>
-            {languages.length > 1 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeArrayItem('languages', index)}
-              >
-                <Minus size={14} />
-              </Button>
-            )}
           </div>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => addArrayItem('languages', { language: '', proficiency: 'Basic' })}
-          className="w-full"
-        >
-          <Plus size={14} className="mr-1" />
-          Add Language
-        </Button>
+        </div>
+        <div className="mt-2">
+          <label className="block text-sm font-medium mb-1">Marks/Percentage</label>
+          <input
+            type="text"
+            placeholder="e.g., 92%"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.sscMarks || ''}
+            onChange={(e) => updateFormData('sscMarks', e.target.value)}
+          />
+        </div>
       </div>
 
-      {/* Key Achievements for CV */}
+      {/* HSC */}
+      <div className="mb-4">
+        <h5 className="font-medium mb-2 text-sm">HSC (12th Grade)</h5>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Institution Name</label>
+            <input
+              type="text"
+              placeholder="Institution name"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+              value={formData.hscInstitution || ''}
+              onChange={(e) => updateFormData('hscInstitution', e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Year</label>
+            <input
+              type="text"
+              placeholder="e.g., 2018"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+              value={formData.hscYear || ''}
+              onChange={(e) => updateFormData('hscYear', e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-2">
+          <label className="block text-sm font-medium mb-1">Marks/Percentage</label>
+          <input
+            type="text"
+            placeholder="e.g., 89%"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+            value={formData.hscMarks || ''}
+            onChange={(e) => updateFormData('hscMarks', e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Bachelors */}
       <div>
-        <h4 className="font-medium text-blue-600 mb-2">Key Achievements</h4>
-        <div className="space-y-2">
-          <textarea
-            placeholder="List your key professional and academic achievements..."
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.cvAchievements || ''}
-            onChange={(e) => updateFormData('cvAchievements', e.target.value)}
-          />
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => updateFormData('cvAchievements', 'AI will generate compelling achievements based on your experience and profile.')}
-            >
-              <Wand2 size={12} className="mr-1" />
-              Generate with AI
-            </Button>
+        <h5 className="font-medium mb-2 text-sm">Bachelor's Degree</h5>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">University Name</label>
+            <input
+              type="text"
+              placeholder="University name"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+              value={formData.bachelorsUniversity || ''}
+              onChange={(e) => updateFormData('bachelorsUniversity', e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Course Name</label>
+            <input
+              type="text"
+              placeholder="e.g., B.Tech Computer Science"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
+              value={formData.bachelorsCourse || ''}
+              onChange={(e) => updateFormData('bachelorsCourse', e.target.value)}
+            />
           </div>
         </div>
-      </div>
-
-      {/* Additional Sections */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">Certifications</label>
-          <textarea
-            placeholder="List relevant certifications and courses..."
-            rows={2}
+        <div className="mt-2">
+          <label className="block text-sm font-medium mb-1">CGPA/Percentage</label>
+          <input
+            type="text"
+            placeholder="e.g., 8.5 CGPA"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.certifications || ''}
-            onChange={(e) => updateFormData('certifications', e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Hobbies & Interests</label>
-          <textarea
-            placeholder="Your hobbies and personal interests..."
-            rows={2}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800"
-            value={formData.hobbies || ''}
-            onChange={(e) => updateFormData('hobbies', e.target.value)}
+            value={formData.bachelorsCgpa || ''}
+            onChange={(e) => updateFormData('bachelorsCgpa', e.target.value)}
           />
         </div>
       </div>
-    </motion.div>
-  );
-
+    </div>
+  </motion.div>
+);
   const renderGenerationModal = () => {
     const currentTool = aiTools.find(tool => tool.id === selectedTool);
     if (!currentTool) return null;
@@ -979,107 +976,219 @@ const AITools = () => {
                 <>
                   {selectedTool === 'sop' && renderSOPForm()}
                   {selectedTool === 'lor' && renderLORForm()}
-                  {selectedTool === 'cv' && renderCVForm()}
+                  {selectedTool === 'cover' && renderCoverLetterForm()}
                 </>
               )}
 
               {generationStep === 2 && (
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="space-y-6 text-center py-8"
-                >
-                  <div className="flex justify-center">
-                    <div className="relative">
-                      <motion.div
-                        className="w-16 h-16 sm:w-20 sm:h-20 border-4 border-blue-200 border-t-blue-500 rounded-full"
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Bot className="text-blue-500" size={24} />
-                      </div>
-                    </div>
-                  </div>
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    className="space-y-6 text-center py-8"
+  >
+    {!generationError ? (
+      // Loading state
+      <>
+        <div className="flex justify-center">
+          <div className="relative">
+            <motion.div
+              className="w-16 h-16 sm:w-20 sm:h-20 border-4 border-blue-200 border-t-blue-500 rounded-full"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Bot className="text-blue-500" size={24} />
+            </div>
+          </div>
+        </div>
 
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">
-                      {isGenerating ? 'AI is working its magic...' : 'Ready to generate!'}
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                      {isGenerating 
-                        ? 'Creating your personalized content using advanced AI algorithms'
-                        : 'Click the button below to start the AI generation process'}
-                    </p>
-                  </div>
+        <div>
+          <h3 className="text-xl font-semibold mb-2">AI is working its magic...</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-2">
+            Creating your personalized document using advanced AI algorithms
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">
+            This may take 30-60 seconds. Please don't close this window.
+          </p>
+        </div>
 
-                  {!isGenerating && (
-                    <Button
-                      onClick={simulateGeneration}
-                      className="px-8 py-3"
-                      size="lg"
-                    >
-                      <Wand2 size={16} className="mr-2" />
-                      Generate with AI
-                    </Button>
-                  )}
-                </motion.div>
-              )}
+        {/* Progress indicator */}
+        <div className="max-w-xs mx-auto">
+          <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+            <span>Processing...</span>
+            <span>{isGenerating ? 'In Progress' : 'Complete'}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <motion.div
+              className="bg-blue-500 h-2 rounded-full"
+              initial={{ width: "0%" }}
+              animate={{ width: isGenerating ? "75%" : "100%" }}
+              transition={{ duration: 2, ease: "easeInOut" }}
+            />
+          </div>
+        </div>
+      </>
+    ) : (
+      // Error state
+      <>
+        <div className="flex justify-center">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+            <X className="text-red-600 dark:text-red-400" size={32} />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-xl font-semibold mb-2 text-red-600 dark:text-red-400">Generation Failed</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            {generationError}
+          </p>
+        </div>
+
+        {/* Retry and Cancel buttons */}
+        <div className="flex gap-3 justify-center">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setGenerationError(null);
+              setGenerationStep(1);
+            }}
+          >
+            <ChevronLeft size={18} className="mr-2" />
+            Go Back
+          </Button>
+          <Button
+            onClick={() => {
+              setGenerationError(null);
+              simulateGeneration();
+            }}
+          >
+            <RefreshCw size={18} className="mr-2" />
+            Retry
+          </Button>
+        </div>
+      </>
+    )}
+  </motion.div>
+)}
 
               {generationStep === 3 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="space-y-4"
-                >
-                  <div className="flex items-center gap-2 text-green-600 mb-4">
-                    <CheckCircle size={20} />
-                    <span className="font-semibold">Generation Complete!</span>
-                  </div>
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="space-y-6"
+  >
+    <div className="flex items-center gap-2 text-green-600 mb-4">
+      <CheckCircle size={20} />
+      <span className="font-semibold">Document Generated Successfully!</span>
+    </div>
 
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800 max-h-48 sm:max-h-60 overflow-y-auto">
-                    <h4 className="font-semibold mb-2">Generated Content Preview:</h4>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                      {selectedTool === 'sop' && (
-                        <p>
-                          "My passion for computer science began during my undergraduate studies in Engineering, where I discovered the transformative power of technology in solving real-world problems. Through various projects and internships, I have developed strong analytical skills and a deep understanding of software development principles. My goal is to pursue a Master's degree in Computer Science at {formData.university || '[University]'} to advance my knowledge in artificial intelligence and machine learning. With strong family support and a well-planned financial arrangement through {formData.financialArrangement || '[funding source]'}, I am fully prepared to commit to this academic journey..."
-                        </p>
-                      )}
-                      {selectedTool === 'lor' && (
-                        <p>
-                          "I am pleased to recommend {formData.studentName || '[Student Name]'} for admission to your graduate program. During their time as my {formData.relationship || '[relationship]'} in {formData.context || '[context]'}, they consistently demonstrated exceptional analytical abilities and creative problem-solving skills. Their strong foundation in {formData.majorSubjects || '[major subjects]'} and planned focus on {formData.intendedSubjects || '[intended subjects]'} shows remarkable academic preparation. {formData.studentName || '[Student Name]'} possesses the intellectual curiosity and dedication necessary for success in graduate-level studies..."
-                        </p>
-                      )}
-                      {selectedTool === 'cv' && (
-                        <div className="space-y-2">
-                          <p><strong>{formData.fullName || '[Your Name]'}</strong></p>
-                          <p>Email: {formData.email || '[email]'} | Phone: {formData.phone || '[phone]'}</p>
-                          <p><strong>Professional Summary:</strong></p>
-                          <p>{formData.summary || 'AI-generated professional summary will appear here based on your experience and skills.'}</p>
-                          <p><strong>Experience:</strong> {workExperiences[0]?.position || '[Position]'} at {workExperiences[0]?.company || '[Company]'}</p>
-                          <p><strong>Education:</strong> {educationEntries[0]?.degree || '[Degree]'}, {educationEntries[0]?.institution || '[Institution]'}</p>
-                          <p><strong>Skills:</strong> {skills.filter(s => s).join(', ') || '[Skills]'}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+    {/* Document Info Card */}
+    <div className="border-2 border-primary/20 rounded-xl p-6 bg-gradient-to-br from-primary/5 to-primary/10">
+      <div className="flex items-center gap-3 mb-4">
+        <div className={`p-3 rounded-lg bg-gradient-to-r ${aiTools.find(t => t.id === selectedTool)?.bgGradient}`}>
+          <FileText className="text-white" size={24} />
+        </div>
+        <div>
+          <h4 className="font-bold text-lg">
+            {selectedTool === 'sop' ? 'Statement of Purpose' : 
+             selectedTool === 'lor' ? 'Letter of Recommendation' : 
+             'Cover Letter'}.docx
+          </h4>
+          <p className="text-sm text-muted-foreground">
+            Generated on {new Date().toLocaleDateString()} • {generatedContent?.wordCount || 0} words
+          </p>
+        </div>
+      </div>
 
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-                      <Copy size={14} className="mr-1" />
-                      Copy
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-                      <Download size={14} className="mr-1" />
-                      Download
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-                      <RefreshCw size={14} className="mr-1" />
-                      Regenerate
-                    </Button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
+        <p className="text-sm text-muted-foreground text-center">
+          Your document is ready! Click the buttons below to view or download.
+        </p>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-2 gap-3">
+        <Button 
+          variant="outline" 
+          size="lg"
+          className="w-full"
+          onClick={() => {
+            // Show document in a modal or new view
+            if (generatedContent?.text) {
+              // Create a modal or expand view to show content
+              const modal = document.createElement('div');
+              modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;overflow:auto;padding:20px;';
+              modal.innerHTML = `
+                <div style="max-width:800px;margin:40px auto;background:white;padding:40px;border-radius:12px;position:relative;">
+                  <button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:20px;right:20px;background:#ef4444;color:white;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:600;">Close</button>
+                  <h2 style="margin-bottom:20px;color:#1f2937;font-size:24px;font-weight:700;">${selectedTool === 'sop' ? 'Statement of Purpose' : selectedTool === 'lor' ? 'Letter of Recommendation' : 'Cover Letter'}</h2>
+                  <div style="white-space:pre-wrap;line-height:1.8;color:#374151;font-size:16px;">${generatedContent.text}</div>
+                </div>
+              `;
+              document.body.appendChild(modal);
+            }
+          }}
+        >
+          <Eye size={18} className="mr-2" />
+          View Document
+        </Button>
+        <Button 
+          size="lg"
+          className="w-full bg-primary hover:bg-primary/90"
+          onClick={() => {
+            if (generatedContent?.text) {
+              // Create a proper Word document structure
+              const docContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <title>${selectedTool === 'sop' ? 'Statement of Purpose' : selectedTool === 'lor' ? 'Letter of Recommendation' : 'Cover Letter'}</title>
+                </head>
+                <body>
+                  <div style="font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 2; white-space: pre-wrap;">
+                    ${generatedContent.text}
                   </div>
-                </motion.div>
-              )}
+                </body>
+                </html>
+              `;
+              
+              const blob = new Blob([docContent], { type: 'application/msword' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              const fileName = selectedTool === 'sop' ? 'Statement_of_Purpose.doc' : 
+                              selectedTool === 'lor' ? 'Letter_of_Recommendation.doc' : 
+                              'Cover_Letter.doc';
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }
+          }}
+        >
+          <Download size={18} className="mr-2" />
+          Download as Word
+        </Button>
+      </div>
+    </div>
+
+    {/* Generate Another Button */}
+    <div className="text-center pt-4">
+      <Button
+  variant="outline"
+  onClick={() => {
+    setGenerationStep(1);
+    setGeneratedContent(null);
+  }}
+>
+  <RefreshCw size={18} className="mr-2" />
+  Generate Another {selectedTool === 'sop' ? 'SOP' : selectedTool === 'lor' ? 'LOR' : 'Document'}
+</Button>
+    </div>
+  </motion.div>
+)}
             </div>
 
             {/* Footer Actions */}
@@ -1087,35 +1196,69 @@ const AITools = () => {
               <div className="p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex gap-3">
                   {generationStep === 1 && (
-                    <>
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={resetGeneration}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        onClick={() => setGenerationStep(2)}
-                      >
-                        Continue
-                        <ArrowRight size={16} className="ml-2" />
-                      </Button>
-                    </>
-                  )}
-                  {generationStep === 3 && (
-                    <>
-                      <Button variant="outline" className="flex-1">
-                        <Save size={16} className="mr-2" />
-                        Save Draft
-                      </Button>
-                      <Button className="flex-1" onClick={resetGeneration}>
-                        <CheckCircle size={16} className="mr-2" />
-                        Finalize
-                      </Button>
-                    </>
-                  )}
+  <>
+    <Button
+      variant="outline"
+      className="flex-1"
+      onClick={resetGeneration}
+    >
+      Cancel
+    </Button>
+    <Button
+  size="lg"
+  className="w-full"
+  onClick={() => {
+    const tool = aiTools.find(t => t.id === selectedTool);
+    
+    // LOR validation
+    if (selectedTool === 'lor') {
+      if (!formData.seniorName) {
+        alert('Please enter the name of the senior writing the LOR');
+        return;
+      }
+      // If premium and not paid, go to payment
+      if (tool.isPremium && !paymentStatus[selectedTool]) {
+        setGenerationStep(0.5);
+      } else {
+        // Start generation
+        setGenerationStep(2);
+        setTimeout(() => simulateGeneration(), 100);
+      }
+      return;
+    }
+    
+    // Cover Letter validation
+    if (selectedTool === 'cover') {
+      const requiredFields = [
+        'studentName', 'passportNumber', 'courseName', 'universityName',
+        'universityLocation', 'courseDuration', 'tuitionFees',
+        'blockedAccountBank', 'blockedAccountBalance'
+      ];
+      
+      const missingFields = requiredFields.filter(field => !formData[field]);
+      
+      if (missingFields.length > 0) {
+        alert(`Please fill in all required fields marked with *\n\nMissing: ${missingFields.join(', ')}`);
+        return;
+      }
+      // If premium and not paid, go to payment
+      if (tool.isPremium && !paymentStatus[selectedTool]) {
+        setGenerationStep(0.5);
+      } else {
+        // Start generation
+        setGenerationStep(2);
+        setTimeout(() => simulateGeneration(), 100);
+      }
+      return;
+    }
+  }}
+>
+  Continue
+  <ArrowRight size={16} className="ml-2" />
+</Button>
+  </>
+)}
+                  
                 </div>
               </div>
             )}
@@ -1320,21 +1463,7 @@ const AITools = () => {
             >
               <Card className="p-4 sm:p-6 h-full flex flex-col hover:shadow-lg transition-all duration-200 relative">
                 {/* Premium Badge */}
-                {tool.isPremium && (
-                  <div className="absolute top-3 right-3">
-                    {isUnlocked ? (
-                      <Badge className="bg-green-100 text-green-700 text-xs">
-                        <Unlock size={10} className="mr-1" />
-                        Unlocked
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-yellow-100 text-yellow-700 text-xs">
-                        <Lock size={10} className="mr-1" />
-                        Premium
-                      </Badge>
-                    )}
-                  </div>
-                )}
+                
 
                 <div className="flex items-start justify-between mb-4">
                   <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${tool.color}`}>
@@ -1358,30 +1487,26 @@ const AITools = () => {
                       <span className="truncate">{feature}</span>
                     </div>
                   ))}
-                  {tool.features.length > 3 && (
-                    <div className="text-xs text-gray-500">
-                      +{tool.features.length - 3} more features
-                    </div>
-                  )}
+                  
                 </div>
                 
                 <Button 
-                  className="w-full rounded-xl group"
-                  onClick={() => startGeneration(tool.id)}
-                  variant={tool.isPremium && !isUnlocked ? "default" : "default"}
-                >
-                  {tool.isPremium && !isUnlocked ? (
-                    <>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Buy & Open Tool
-                    </>
-                  ) : (
-                    <>
-                      Open Tool
-                      <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </>
-                  )}
-                </Button>
+  className="w-full rounded-xl group"
+  onClick={() => startGeneration(tool.id)}
+  variant={tool.isPremium && !isUnlocked ? "default" : "default"}
+>
+  {tool.isPremium && !isUnlocked ? (
+  <>
+    <CreditCard className="w-4 h-4 mr-2" />
+    Buy & Open Tool
+  </>
+) : (
+  <>
+    Open Tool
+    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+  </>
+)}
+</Button>
               </Card>
             </motion.div>
           );
@@ -1403,5 +1528,4 @@ const AITools = () => {
   );
 };
 
-export default AITools;
-         
+export default AITools;    

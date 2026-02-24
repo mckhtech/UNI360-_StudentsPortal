@@ -23,7 +23,6 @@ const navigationItems = [
   { title: "Documents", url: "/documents", icon: FolderOpen },
   { title: "Universities", url: "/universities", icon: GraduationCap },
   { title: "Applications", url: "/applications", icon: FileText },
-  { title: "Ask AI", url: "/ask-ai", icon: MessageCircle },
   { title: "AI Tools", url: "/ai-tools", icon: Bot },
   { title: "Finances", url: "/finances", icon: CreditCard },
   { title: "Visa", url: "/visa", icon: Plane },

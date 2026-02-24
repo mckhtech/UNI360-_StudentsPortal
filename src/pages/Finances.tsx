@@ -20,7 +20,8 @@ import {
   PoundSterling,
   Send,
   X,
-  ArrowRight
+  ArrowRight,
+  Phone
 } from "lucide-react";
 
 type Country = "DE" | "UK";
@@ -148,7 +149,6 @@ const statsData = {
 
 export default function Finances() {
   const { selectedCountry } = useOutletContext<ContextType>();
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [isLoanPopupOpen, setIsLoanPopupOpen] = useState(false);
   const [isLoanDetailsOpen, setIsLoanDetailsOpen] = useState(false);
@@ -182,13 +182,9 @@ export default function Finances() {
     document.body.removeChild(link);
   };
 
-  const handleWhatsAppClick = () => {
-    setIsChatOpen(!isChatOpen);
-  };
-
-  const handleOpenWhatsAppBusiness = () => {
-    window.open('https://wa.me/1234567890?text=Hello!%20I%20need%20help%20with%20my%20financial%20payments', '_blank', 'noopener,noreferrer');
-  };
+  const handleGoogleMeetClick = () => {
+  window.open('https://meet.google.com/bqr-dcwn-wka', '_blank', 'noopener,noreferrer');
+};
 
   return (
     <motion.div 
@@ -216,7 +212,7 @@ export default function Finances() {
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.1 }}
       >
-        {/* Stats */}
+        {/* Stats
         <div className="flex flex-row gap-4">
           <div className="flex-1 p-4 bg-orange-50 rounded-lg">
             <div className="text-sm text-muted-foreground mb-1">pending payments</div>
@@ -230,7 +226,7 @@ export default function Finances() {
             <div className="text-sm text-muted-foreground mb-1">total paid</div>
             <div className="text-2xl font-bold text-blue-600">{stats.totalPaid}</div>
           </div>
-        </div>
+        </div> */}
 
         {/* Education Loan Card */}
         <Card className="p-8 bg-amber-50">
@@ -355,59 +351,7 @@ export default function Finances() {
         )}
       </motion.section>
 
-      {/* Pending Payments */}
-      <motion.section
-        className="space-y-4"
-        variants={container}
-        initial="hidden"
-        animate="show"
-      >
-        <h2 className="text-2xl font-semibold">Pending Payments</h2>
-        {payments.pending.map((payment) => (
-          <motion.div key={payment.id} variants={item}>
-            <Card className="p-6 border-l-4 border-orange-200 bg-orange-50">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg mb-2">{payment.description}</h3>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      Due: {payment.dueDate}
-                    </div>
-                    <div className="text-xl font-bold text-primary">{payment.amount}</div>
-                  </div>
-                  {payment.note && selectedCountry === "DE" && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-amber-800">
-                          <strong>Important:</strong> {payment.note}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2 mt-12">
-                  <Button className="rounded-pill">
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Pay Now
-                  </Button>
-                  {payment.note && selectedCountry === "DE" && (
-                    <Button 
-                      variant="outline"
-                      className="rounded-pill"
-                      onClick={handleDemandDraftDownload}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Download Demand Draft Form
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.section>
+      
 
       {/* Completed Payments */}
       <motion.section
@@ -444,104 +388,50 @@ export default function Finances() {
         ))}
       </motion.section>
 
-      {/* WhatsApp Chat Button - Only show when chat is closed */}
-      {!isChatOpen && (
-        <motion.div
-          className="fixed bottom-6 right-6 z-50"
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          <Button
-            onClick={handleWhatsAppClick}
-            className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 shadow-lg hover:shadow-xl transition-all duration-300 p-0 relative"
-            title="Chat with us on WhatsApp"
-          >
-            <svg
-              className="w-8 h-8 text-white transform scale-[1.6]"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.488"/>
-            </svg>
-          </Button>
-        </motion.div>
-      )}
-
-      {/* WhatsApp Chat Interface */}
-      <AnimatePresence>
-        {isChatOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0, y: 50 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0, y: 50 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="fixed bottom-24 right-6 z-40 w-80 max-w-[calc(100vw-2rem)]"
-          >
-            {/* Chat Widget */}
-            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                    <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.488"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <span className="text-sm font-bold">WhatsApp Support</span>
-                    <p className="text-xs opacity-80">Typically replies instantly</p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setIsChatOpen(false)}
-                  size="sm"
-                  variant="ghost"
-                  className="text-white hover:bg-white/20 p-1 h-8 w-8 rounded-full"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* Chat Content */}
-              <div className="p-4 bg-gradient-to-b from-green-50 to-white h-64 flex flex-col relative">
-                {/* Chat Messages Area */}
-                <div className="flex-1 overflow-hidden mb-4">
-                  {/* Chat Bubble */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 shadow-md">
-                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.465 3.488"/>
-                      </svg>
-                    </div>
-                    <div className="flex-1 max-w-[220px]">
-                      <div className="bg-white rounded-2xl rounded-tl-md p-3 shadow-lg border border-gray-100">
-                        <p className="text-gray-800 text-sm font-semibold mb-1">Hello there! 👋</p>
-                        <p className="text-gray-600 text-xs leading-relaxed mb-2">I'm here to help you with your payment process. How can I assist you today?</p>
-                        <p className="text-xs text-gray-400">Just now</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Open Chat Button - Fixed at bottom */}
-                <div className="flex justify-end">
-                  <Button
-                    onClick={handleOpenWhatsAppBusiness}
-                    className="bg-green-500 hover:bg-green-600 text-white rounded-full px-4 py-2 text-sm flex items-center gap-2 shadow-lg"
-                  >
-                    Open chat
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Google Meet Help Section */}
+{/* Google Meet Help Section */}
+<motion.section
+  className="space-y-4"
+  initial={{ y: 20, opacity: 0 }}
+  animate={{ y: 0, opacity: 1 }}
+  transition={{ duration: 0.5, delay: 0.4 }}
+>
+  <Card className="p-8 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-100">
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center">
+  <Phone className="w-8 h-8 text-blue-600" />
+</div>
+        <h3 className="font-semibold text-2xl">Need Help?</h3>
+      
+      </div>
+      
+      <div className="text-base text-muted-foreground leading-relaxed">
+        Have questions about payments, blocked accounts, or education loans? Our financial advisors are 
+        available for one-on-one video consultations to guide you through the process and answer all your questions.
+      </div>
+      
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 text-base text-gray-700 p-4 bg-white rounded-lg">
+          <strong>Schedule a Video Consultation</strong><br />
+          Connect with our expert advisors via Google Meet for personalized assistance with your financial 
+          planning, payment processes, and documentation requirements.
+        </div>
+        <div className="flex flex-col gap-3 lg:flex-shrink-0">
+          <Button 
+  size="sm"
+  className="bg-blue-500 hover:bg-blue-600 text-white rounded-pill whitespace-nowrap w-fit"
+  onClick={handleGoogleMeetClick}
+>
+  <Phone className="w-3 h-3 mr-1.5" />
+  Join Video Call Now
+</Button>
+        </div>
+      </div>
+    </div>
+  </Card>
+</motion.section>
+      
 
       {/* Blocked Account Providers Popup */}
       <AnimatePresence>

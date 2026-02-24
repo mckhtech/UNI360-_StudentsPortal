@@ -371,26 +371,7 @@ const ApplicationDetailsModal = ({ application, isOpen, onClose, onRefresh }) =>
             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
             Close
           </button>
-          <div className="flex gap-2">
-            <button
-              onClick={loadProgress}
-              className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2">
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-            {(application.status?.toUpperCase() === 'DRAFT' || 
-  !application.submittedAt) && (
-              <button
-                onClick={() => {
-                  onClose();
-                  // Navigate to edit
-                }}
-                className="px-6 py-2 bg-[#E08D3C] text-white rounded-lg hover:bg-[#c77a32] transition-colors flex items-center gap-2">
-                <Edit className="w-4 h-4" />
-                Continue Application
-              </button>
-            )}
-          </div>
+          
         </div>
       </div>
     </div>
@@ -533,6 +514,8 @@ useEffect(() => {
           return {
             ...app,
             id: app.id,
+            country_code: app.country_code || "",
+program_level: app.program_level || "",
             universityName: app.universityName || app.university_name || universityData?.name || "University",
             programName: app.programName || app.program_name || app.targetCourseName || app.target_course_name || "Program",
             intakeTerm: formattedIntake,
@@ -623,8 +606,8 @@ if (countryCode === undefined) {
 };
 
 const handleSubmitApplication = async () => {
-  if (!submittingAppId || !submitFormData.agreeToTerms) {
-    alert('Please agree to terms and conditions');
+  if (!submittingAppId) {  // ✅ ONLY CHECK APP ID
+    alert('No application selected');
     return;
   }
 
@@ -647,10 +630,12 @@ const handleSubmitApplication = async () => {
 
   try {
     setLoading(true);
-    const response = await submitApplication(submittingAppId, {
-      confirmationStatement: submitFormData.confirmationStatement || "I confirm that all information provided is accurate.",
-      agreeToTerms: submitFormData.agreeToTerms,
-      additionalNotes: submitFormData.additionalNotes
+    const response = await submitApplication(submittingAppId, {  // ✅ ALL FIELDS WITH DEFAULTS
+      confirmationStatement: submitFormData.confirmationStatement || "",
+      agreeToTerms: submitFormData.agreeToTerms || true,  // ✅ DEFAULT TO TRUE
+      additionalNotes: submitFormData.additionalNotes || "",
+      territory: submitFormData.territory || "",
+      degreeLevel: submitFormData.degreeLevel || ""
     });
 
     console.log('Submit response:', response);
@@ -710,7 +695,9 @@ const openSubmitModal = (appId: string) => {
   setSubmitFormData({
     confirmationStatement: "",
     agreeToTerms: false,
-    additionalNotes: ""
+    additionalNotes: "",
+    territory: "",
+    degreeLevel: ""
   });
 };
 

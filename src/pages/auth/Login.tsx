@@ -811,7 +811,7 @@ const FlipCard = ({
       frontContent={
         <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl shadow-lg overflow-hidden h-full">
           <img 
-            src="/assets/vishal.jpeg" 
+            src="/assets/vishal.jpg" 
             alt="Vishal" 
             className="w-full h-full object-cover"
           />
@@ -835,7 +835,7 @@ const FlipCard = ({
       frontContent={
         <div className="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl shadow-lg overflow-hidden h-full">
           <img 
-            src="/assets/siddika.jpeg" 
+            src="/assets/siddika.jpg" 
             alt="Siddika" 
             className="w-full h-full object-cover"
           />
@@ -909,7 +909,7 @@ const FlipCard = ({
       frontContent={
         <div className="bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl shadow-lg overflow-hidden h-full">
           <img 
-            src="/assets/dishant.jpeg" 
+            src="/assets/dishant.jpg" 
             alt="Dishant" 
             className="w-full h-full object-cover"
           />

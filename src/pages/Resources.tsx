@@ -301,8 +301,19 @@ export default function Resources() {
   featured: true,
   isService: true,
   redirectLink: "https://www.daad.in/en/study-research-in-germany/insurance/"
+},
+{
+  id: 21,
+  title: 'CV/Resume Builder',
+  description: 'Build ATS-friendly resumes optimized for international applications using the professional Europass format.',
+  category: 'services',
+  type: 'Service',
+  readTime: 'Quick service',
+  tags: ['CV', 'Resume', 'Europass', 'Career'],
+  featured: true,
+  isService: true,
+  redirectLink: 'https://europass.europa.eu/en/create-europass-cv'
 }
-
     
   ];
 
