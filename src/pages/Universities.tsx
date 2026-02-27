@@ -47,6 +47,7 @@ import {
   getAllCourses,
   addCourseToFavorites,
   removeCourseFromFavorites,
+  getApplicationById, 
   getProfileProgress
 } from "@/services/studentProfile";
 import { useAuth } from "@/contexts/AuthContext";
@@ -99,6 +100,7 @@ const loadCourses = async () => {
     setError(null);
     
     console.log('[CourseModal] Fetching ALL courses from API...');
+    console.log('[CourseModal] Selected university:', university);
     
     // Fetch all courses from the API
     const response = await getAllCourses();
@@ -122,38 +124,59 @@ const loadCourses = async () => {
     
     console.log('[CourseModal] Courses for this university:', universityCourses.length);
     
-    // Map API response to internal format
+    // CRITICAL: PRESERVE ALL ORIGINAL API FIELDS
+    // Map API response to internal format while keeping original fields
     const mappedCourses = universityCourses.map(course => ({
+      // Keep ALL original API fields (these are what the backend needs)
       id: course.id,
-      university_id: course.universityId,
+      universityId: course.universityId,
       universityName: course.universityName,
       universityCode: course.universityCode,
       universityCountry: course.universityCountry,
       name: course.name,
       courseCode: course.courseCode,
+      degreeLevel: course.degreeLevel,           // CRITICAL: Keep as MASTERS/BACHELORS
+      degreeType: course.degreeType,
+      fieldOfStudy: course.fieldOfStudy,
+      studyMode: course.studyMode,
+      durationYears: course.durationYears,
+      tuitionInternational: course.tuitionInternational,
+      currency: course.currency,
+      scholarshipsAvailable: course.scholarshipsAvailable,
+      intakeSeasons: course.intakeSeasons || [],
+      applicationDeadline: course.applicationDeadline,
+      careerOpportunities: course.careerOpportunities || [],
+      isPopular: course.isPopular,
+      rating: course.rating,
+      hasApplied: course.hasApplied,
+      isFavorite: course.isFavorite,
+      canApplyNow: course.canApplyNow,
+      
+      // ALSO keep mapped fields for UI display (backward compatibility)
+      university_id: course.universityId,
       subject_area: course.fieldOfStudy,
-      degree_type: course.degreeLevel?.toLowerCase() || 'bachelors',
+      degree_type: course.degreeLevel?.toLowerCase() || 'masters',
       degree_level: course.degreeType,
       language: 'English',
       duration_months: (course.durationYears || 3) * 12,
       duration_years: course.durationYears,
       intake_season: course.intakeSeasons?.[0] || 'WINTER',
       tuition_fee: course.tuitionInternational || 0,
-      currency: course.currency || 'EUR',
       min_gpa: '2.5',
       min_ielts: '6.5',
       study_mode: course.studyMode,
       scholarships_available: course.scholarshipsAvailable,
-      career_opportunities: course.careerOpportunities || [],
       is_popular: course.isPopular,
-      rating: course.rating,
       has_applied: course.hasApplied,
       is_favorite: course.isFavorite,
       can_apply_now: course.canApplyNow,
       description: `${course.degreeType} in ${course.fieldOfStudy}`,
     }));
     
-    console.log('[CourseModal] ✅ Mapped courses:', mappedCourses);
+    console.log('[CourseModal] ✅ Mapped courses with preserved fields:', mappedCourses);
+    console.log('[CourseModal] Sample course degreeLevel:', mappedCourses[0]?.degreeLevel);
+    console.log('[CourseModal] Sample course universityCountry:', mappedCourses[0]?.universityCountry);
+    
     setCourses(mappedCourses);
     
   } catch (err) {
@@ -224,8 +247,10 @@ const loadCourses = async () => {
 // REPLACE the entire handleApplyNow function with:
 const handleApplyNow = async (course) => {
   console.log('=== COURSE SELECTED FOR APPLICATION ===');
-  console.log('Course:', course);
-  console.log('University:', university);
+  console.log('Course ID:', course.id);
+  console.log('Course degreeLevel:', course.degreeLevel);
+  console.log('University ID:', university.id);
+  console.log('University Country:', course.universityCountry || university.country);
   
   if (!course || !course.id) {
     alert('Error: Invalid course selected. Please try again.');
@@ -237,7 +262,8 @@ const handleApplyNow = async (course) => {
     return;
   }
   
-  // CRITICAL: Store course and university in parent state FIRST
+  // CRITICAL: Store course and university in parent state
+  // Make sure we're passing the FULL course object with all fields
   console.log('Setting selectedCourse and selectedUniversity...');
   setSelectedCourse(course);
   setSelectedUniversity(university);
@@ -253,14 +279,12 @@ const handleApplyNow = async (course) => {
       universityName: university.name,
       courseId: course.id,
       courseName: course.name,
+      courseDegreeLevel: course.degreeLevel, // Store this too
       timestamp: Date.now()
     }));
     
-    // Close course modal
     console.log('Profile incomplete, showing profile modal...');
     onClose();
-    
-    // Show profile incomplete modal
     setShowProfileIncompleteModal(true);
     return;
   }
@@ -269,11 +293,10 @@ const handleApplyNow = async (course) => {
   console.log('Profile complete, fetching profile data...');
   await fetchAndProcessProfile();
   
-  // Close course modal first
   console.log('Closing course modal...');
   onClose();
   
-  // THEN open form modal with a small delay to ensure state is updated
+  // THEN open form modal with a small delay
   setTimeout(() => {
     console.log('Opening form modal...');
     setIsFormModalOpen(true);
@@ -1051,12 +1074,42 @@ const DynamicApplicationFormModal = ({
         const preferences = profileData.preferences || {};
         
         // Personal Information
-        initialData.fullName = ''; // Not in profile API
-        initialData.email = user?.email || '';
-        initialData.phone = basicInfo.phone || '';
-        initialData.dateOfBirth = convertDateFormat(basicInfo.date_of_birth) || '';
-        initialData.nationality = basicInfo.nationality || '';
-        initialData.passportNumber = basicInfo.passport_number || '';
+        // Personal Information
+// Full name: combine from user auth object first, fallback to profileData top-level
+initialData.fullName = 
+  (user?.firstName && user?.lastName)
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : (user?.first_name && user?.last_name)
+    ? `${user.first_name} ${user.last_name}`.trim()
+    : user?.name || 
+      profileData?.full_name || 
+      `${profileData?.first_name || ''} ${profileData?.last_name || ''}`.trim() || 
+      '';
+
+initialData.email = user?.email || profileData?.email || '';
+
+// Phone: check basicInfo first, then top-level profileData
+initialData.phone = 
+  basicInfo.phone || 
+  profileData?.phone || 
+  '';
+
+// Date of Birth: check basicInfo first, then top-level profileData
+initialData.dateOfBirth = 
+  convertDateFormat(basicInfo.date_of_birth) || 
+  convertDateFormat(profileData?.date_of_birth) || 
+  '';
+
+// Nationality: check basicInfo first, then top-level profileData
+initialData.nationality = 
+  basicInfo.nationality || 
+  profileData?.nationality || 
+  '';
+
+initialData.passportNumber = 
+  basicInfo.passport_number || 
+  profileData?.passport_number || 
+  '';
         
         // Academic Background
         initialData.previousDegree = ''; // Can be filled manually
@@ -2075,10 +2128,8 @@ const isFavorite = (universityId) => {
 const handlePaymentSuccess = async (university) => {
   console.log("=== PAYMENT SUCCESS ===");
   console.log("University param:", university);
-  console.log("Selected university state:", selectedUniversity);
   console.log("Selected course state:", selectedCourse);
   
-  // Use university from parameter, fall back to state
   const targetUniversity = university || selectedUniversity;
   
   if (!targetUniversity || !targetUniversity.id) {
@@ -2106,51 +2157,65 @@ const handlePaymentSuccess = async (university) => {
       return;
     }
 
-    // Extract intake term and year from course
+    // Determine semester from course intake seasons
+    // Map intake season names to backend-expected semester values
     let targetSemester = "WINTER";
-    let targetYear = new Date().getFullYear() + 1;
-    
-    if (selectedCourse.intake_season) {
-      const intakeStr = selectedCourse.intake_season.toUpperCase();
-      
-      if (intakeStr.includes('_')) {
-        const parts = intakeStr.split('_');
-        targetSemester = parts[0];
-        targetYear = parseInt(parts[1]) || targetYear;
-      } else {
-        targetSemester = intakeStr;
-        
-        const currentMonth = new Date().getMonth() + 1;
-        const currentYear = new Date().getFullYear();
-        
-        if (targetSemester === "WINTER" && currentMonth >= 10) {
-          targetYear = currentYear + 1;
-        } else if (targetSemester === "SPRING" && currentMonth >= 1) {
-          targetYear = currentYear;
-        } else if (targetSemester === "SUMMER" && currentMonth >= 4) {
-          targetYear = currentYear;
-        } else if (targetSemester === "FALL" || targetSemester === "AUTUMN") {
-          targetSemester = "FALL";
-          targetYear = currentMonth >= 7 ? currentYear : currentYear + 1;
-        }
-      }
+    if (selectedCourse.intakeSeasons && selectedCourse.intakeSeasons.length > 0) {
+      const season = selectedCourse.intakeSeasons[0].toUpperCase();
+      // Map "FALL" -> "WINTER" (fall intake = winter semester), keep others as-is
+      const semesterMap = {
+        'FALL': 'WINTER',
+        'WINTER': 'WINTER', 
+        'SPRING': 'SUMMER',
+        'SUMMER': 'SUMMER',
+      };
+      targetSemester = semesterMap[season] || 'WINTER';
     }
 
-    // Create application data - USE targetUniversity instead of university
+    // CRITICAL: Ensure studentId is a number (not a string from localStorage)
+    const numericStudentId = Number(user.id);
+    if (isNaN(numericStudentId)) {
+      console.error('Invalid user ID:', user.id);
+      alert('Error: Invalid user session. Please log out and log back in.');
+      setIsPaymentModalOpen(false);
+      return;
+    }
+
+    // Create clean application data - ONLY these 5 fields
+    // Must match exactly: { studentId: number, targetUniversityId: string, targetCourseId: string, targetSemester: string, targetYear: number }
     const applicationData = {
-      studentId: user.id,
+      studentId: numericStudentId,
       targetUniversityId: targetUniversity.id,
       targetCourseId: selectedCourse.id,
       targetSemester: targetSemester,
-      targetYear: targetYear,
+      targetYear: 2026,
     };
 
     console.log('=== CREATING APPLICATION ===');
-    console.log('Application data:', JSON.stringify(applicationData, null, 2));
+    console.log('University:', targetUniversity.name, '| ID:', targetUniversity.id);
+    console.log('Course:', selectedCourse.name, '| ID:', selectedCourse.id);
+    console.log('Payload:', JSON.stringify(applicationData, null, 2));
     
-    // Call the backend API
+    // Compare with working Postman IDs
+    const postmanUniversityId = "e19511ea-0013-4faa-9fcb-848e1e6991d8";
+    const postmanCourseId = "e2f3c726-360a-42c0-808c-9b80f84cd7c2";
+    console.log('⚠️ COMPARISON WITH POSTMAN:');
+    console.log('  University ID match:', applicationData.targetUniversityId === postmanUniversityId, 
+      `(Frontend: ${applicationData.targetUniversityId}, Postman: ${postmanUniversityId})`);
+    console.log('  Course ID match:', applicationData.targetCourseId === postmanCourseId,
+      `(Frontend: ${applicationData.targetCourseId}, Postman: ${postmanCourseId})`);
+    
     const response = await createApplication(applicationData);
-    console.log('✅ Application API response:', response);
+    console.log('✅ Application created:', response);
+    
+    // Show create response details for debugging
+    const appData = response?.data || response;
+    console.log('✅ CREATE RESPONSE DETAILS:');
+    console.log('  client_id:', appData?.client_id);
+    console.log('  country_code:', appData?.country_code);
+    console.log('  program_level:', appData?.program_level);
+    console.log('  application_type:', appData?.application_type);
+    console.log('  workflow_stage:', appData?.workflow_stage);
 
     const applicationId = response?.data?.id || response?.id;
     
@@ -2158,21 +2223,16 @@ const handlePaymentSuccess = async (university) => {
       throw new Error('Application created but no ID returned');
     }
 
-    console.log('✅ Application successfully created with ID:', applicationId);
+    console.log('✅ Application ID:', applicationId);
 
-    // Close modals
+    // Close modals and navigate
     setIsPaymentModalOpen(false);
     setSelectedUniversity(null);
     setSelectedCourse(null);
     setIsFormModalOpen(false);
     
-    // Success message
-    const refNumber = response?.data?.referenceNumber || response?.referenceNumber || 'N/A';
+    navigate("/applications");
 
-// Direct navigation (no alert, no delay)
-navigate("/applications");
-
-    
   } catch (error) {
     console.error('❌ Error creating application:', error);
     
@@ -2182,8 +2242,6 @@ navigate("/applications");
       errorMessage += 'Invalid university or course information.';
     } else if (error.message?.includes('401') || error.message?.includes('authenticated')) {
       errorMessage += 'Authentication failed. Please log in again.';
-    } else if (error.message?.includes('Missing required')) {
-      errorMessage += 'Please select a course before applying.';
     } else {
       errorMessage += error.message || 'Unknown error occurred.';
     }

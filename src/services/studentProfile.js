@@ -249,32 +249,97 @@ export const getStudentApplications = async (countryCode) => {
 
 export const createApplication = async (applicationData) => {
   try {
-    if (!applicationData.studentId) throw new Error('Student ID is required');
-    if (!applicationData.targetUniversityId) throw new Error('University ID is required');
-    if (!applicationData.targetCourseId) throw new Error('Course ID is required');
-    if (!applicationData.targetSemester) throw new Error('Target semester is required');
-    if (!applicationData.targetYear) throw new Error('Target year is required');
+    console.log('[StudentProfile] ========== CREATE APPLICATION START ==========');
+    
+    // Validate required fields
+    if (!applicationData.studentId) {
+      throw new Error('studentId is required');
+    }
+    if (!applicationData.targetUniversityId) {
+      throw new Error('targetUniversityId is required');
+    }
+    if (!applicationData.targetCourseId) {
+      throw new Error('targetCourseId is required');
+    }
+    if (!applicationData.targetSemester) {
+      throw new Error('targetSemester is required');
+    }
+    if (!applicationData.targetYear) {
+      throw new Error('targetYear is required');
+    }
 
+    // Create clean payload - ONLY these 5 fields, nothing else
+    // CRITICAL: studentId MUST be a number, targetYear MUST be a number
     const payload = {
-      studentId: applicationData.studentId,
-      targetUniversityId: applicationData.targetUniversityId,
-      targetCourseId: applicationData.targetCourseId,
-      targetSemester: applicationData.targetSemester.toUpperCase(),
-      targetYear: parseInt(applicationData.targetYear, 10),
+      studentId: Number(applicationData.studentId),
+      targetUniversityId: String(applicationData.targetUniversityId),
+      targetCourseId: String(applicationData.targetCourseId),
+      targetSemester: String(applicationData.targetSemester).toUpperCase(),
+      targetYear: Number(applicationData.targetYear)
     };
 
-    console.log('=== CREATING APPLICATION ===');
-    console.log('Payload:', JSON.stringify(payload, null, 2));
+    // Validate types before sending
+    if (isNaN(payload.studentId) || payload.studentId <= 0) {
+      throw new Error(`Invalid studentId: ${applicationData.studentId}. Must be a positive number.`);
+    }
+    if (isNaN(payload.targetYear) || payload.targetYear < 2024) {
+      throw new Error(`Invalid targetYear: ${applicationData.targetYear}. Must be a valid year.`);
+    }
 
-    const response = await apiRequest('/api/v1/students/applications', {
-      method: 'POST',
-      body: payload,
+    console.log('[StudentProfile] Create Application Payload:', JSON.stringify(payload, null, 2));
+    console.log('[StudentProfile] Payload types:', {
+      studentId: typeof payload.studentId,
+      targetUniversityId: typeof payload.targetUniversityId,
+      targetCourseId: typeof payload.targetCourseId,
+      targetSemester: typeof payload.targetSemester,
+      targetYear: typeof payload.targetYear
     });
 
-    console.log('✅ Application created successfully:', response);
-    return response;
+    // CRITICAL: Use direct fetch to match Postman curl EXACTLY
+    // Postman only sends Content-Type + Authorization headers
+    // The shared apiRequest/makeAuthenticatedRequest adds X-Client-ID: uniflow
+    // which causes the backend to use a different client config (no workflow definitions)
+    const { getAccessToken } = await import('./tokenService.js');
+    const token = await getAccessToken();
+    
+    const url = `${BASE_URL}/api/v1/students/applications`;
+    
+    console.log('[StudentProfile] Direct fetch to:', url);
+    console.log('[StudentProfile] Using token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    console.log('[StudentProfile] Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[StudentProfile] Create Application Error Response:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('[StudentProfile] ========== CREATE APPLICATION SUCCESS ==========');
+    console.log('[StudentProfile] Full Response:', JSON.stringify(data, null, 2));
+    console.log('[StudentProfile] Application ID:', data?.data?.id || data?.id);
+    console.log('[StudentProfile] Client ID:', data?.data?.client_id);
+    console.log('[StudentProfile] Application Type:', data?.data?.application_type || data?.application_type);
+    console.log('[StudentProfile] Program Level:', data?.data?.program_level || data?.program_level);
+    console.log('[StudentProfile] Country Code:', data?.data?.country_code || data?.country_code);
+    console.log('[StudentProfile] Workflow Stage:', data?.data?.workflow_stage || data?.workflow_stage);
+    console.log('[StudentProfile] Status:', data?.data?.status || data?.status);
+    
+    return data;
   } catch (error) {
-    console.error('❌ Error creating application:', error);
+    console.error('[StudentProfile] ========== CREATE APPLICATION FAILED ==========');
+    console.error('[StudentProfile] Error:', error);
     throw handleApiError(error);
   }
 };
@@ -305,27 +370,83 @@ export const updateApplication = async (applicationId, updateData) => {
   }
 };
 
-export const submitApplication = async (applicationId, submissionData = {}) => {
-  // NO validation - let backend handle it
-  
-  const payload = {
-    confirmationStatement: submissionData.confirmationStatement || "",
-    agreeToTerms: submissionData.agreeToTerms !== undefined ? submissionData.agreeToTerms : true,  // ← Default to true
-    additionalNotes: submissionData.additionalNotes || "",
-    territory: submissionData.territory || "",
-    degreeLevel: submissionData.degreeLevel || ""
-  };
-  
-  console.log('=== SUBMITTING APPLICATION ===');
-  console.log('Application ID:', applicationId);
-  console.log('Payload (matching Postman):', JSON.stringify(payload, null, 2));
-  
-  const response = await apiRequest(`/api/v1/students/applications/${applicationId}/submit`, {
-    method: 'POST',
-    body: payload,
-  });
-  
-  return response;
+export const submitApplication = async (applicationId, submitData) => {
+  try {
+    console.log('[StudentProfile] ========== SUBMIT APPLICATION START ==========');
+    console.log('[StudentProfile] Application ID:', applicationId);
+    console.log('[StudentProfile] Submit Data received:', submitData);
+    
+    // Validate required fields
+    if (!submitData.agreeToTerms) {
+      throw new Error('You must agree to the terms and conditions');
+    }
+    
+    // Prepare the exact payload structure that works in Postman
+    const payload = {
+      confirmationStatement: submitData.confirmationStatement || "I confirm that all information provided is accurate.",
+      agreeToTerms: submitData.agreeToTerms,
+      additionalNotes: submitData.additionalNotes || ""
+    };
+    
+    console.log('[StudentProfile] Final Submit Payload:', JSON.stringify(payload, null, 2));
+
+    // CRITICAL: Use direct fetch to match Postman curl EXACTLY
+    // Only send Content-Type + Authorization headers (no X-Client-ID)
+    const { getAccessToken } = await import('./tokenService.js');
+    const token = await getAccessToken();
+    
+    const url = `${BASE_URL}/api/v1/students/applications/${applicationId}/submit`;
+    
+    console.log('[StudentProfile] Direct fetch to:', url);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    console.log('[StudentProfile] Response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[StudentProfile] Submit Error Response:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    console.log('[StudentProfile] ========== SUBMIT SUCCESSFUL ==========');
+    console.log('[StudentProfile] Submit response:', data);
+    return data;
+  } catch (error) {
+    console.error(`[StudentProfile] ========== SUBMIT FAILED ==========`);
+    console.error(`[StudentProfile] Application ID: ${applicationId}`);
+    console.error(`[StudentProfile] Error:`, error);
+    
+    // Extract clean error message
+    let errorMessage = 'Failed to submit application';
+    
+    if (error.message) {
+      try {
+        const jsonMatch = error.message.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const errorData = JSON.parse(jsonMatch[0]);
+          errorMessage = errorData.message || errorMessage;
+        } else {
+          errorMessage = error.message;
+        }
+      } catch (parseError) {
+        errorMessage = error.message;
+      }
+    }
+    
+    const cleanError = new Error(errorMessage);
+    cleanError.originalError = error;
+    throw cleanError;
+  }
 };
 
 export const getApplicationProgress = async (applicationId) => {

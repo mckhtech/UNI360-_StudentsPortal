@@ -474,6 +474,56 @@ useEffect(() => {
               }) 
             : null;
 
+// Debug logging
+console.log('Application data from API:', {
+  id: app.id,
+  country_code: app.country_code,
+  countryCode: app.countryCode,
+  program_level: app.program_level,
+  programLevel: app.programLevel,
+  application_type: app.application_type,
+  applicationType: app.applicationType
+});
+
+// Extract country_code from API response
+const country_code = app.country_code || app.countryCode || "";
+
+// Get program_level from the target course since API doesn't return it
+let program_level = app.program_level || app.programLevel || "";
+
+// If not in app, try to get from course via API
+if (!program_level && (app.targetCourseId || app.target_course_id)) {
+  try {
+    const courseId = app.targetCourseId || app.target_course_id;
+    console.log(`Fetching course data for: ${courseId}`);
+    
+    // Fetch all courses to find the one for this application
+    const { getAllCourses } = await import('../services/studentProfile');
+    const courses = await getAllCourses();
+    const targetCourse = courses.find(c => c.id === courseId);
+    
+    if (targetCourse && targetCourse.degreeLevel) {
+      program_level = targetCourse.degreeLevel;
+      console.log(`✅ Found program_level from course: ${program_level}`);
+    }
+  } catch (err) {
+    console.warn('Could not fetch course data:', err);
+  }
+}
+
+// Final fallback: derive from program name
+if (!program_level) {
+  const programName = (app.programName || app.program_name || '').toLowerCase();
+  if (programName.includes('master')) {
+    program_level = 'MASTERS';
+  } else if (programName.includes('bachelor')) {
+    program_level = 'BACHELORS';
+  } else if (programName.includes('phd') || programName.includes('doctorate')) {
+    program_level = 'DOCTORATE';
+  }
+  console.log(`Derived program_level from program name: ${program_level}`);
+}
+
           // Format intake term
           let formattedIntake = app.intakeTerm || app.intake_term || '';
           if (formattedIntake) {
@@ -514,8 +564,8 @@ useEffect(() => {
           return {
             ...app,
             id: app.id,
-            country_code: app.country_code || "",
-program_level: app.program_level || "",
+country_code: country_code,
+program_level: program_level,
             universityName: app.universityName || app.university_name || universityData?.name || "University",
             programName: app.programName || app.program_name || app.targetCourseName || app.target_course_name || "Program",
             intakeTerm: formattedIntake,
@@ -606,84 +656,57 @@ if (countryCode === undefined) {
 };
 
 const handleSubmitApplication = async () => {
-  if (!submittingAppId) {  // ✅ ONLY CHECK APP ID
-    alert('No application selected');
-    return;
-  }
-
-  // Find the application to validate
-  const application = applications.find(a => a.id === submittingAppId);
-  
-  // Validate application exists and is in draft status
-  if (!application) {
-    alert('Application not found. Please refresh the page and try again.');
-    setIsSubmitModalOpen(false);
-    return;
-  }
-
-  const status = application.status?.toUpperCase();
-  if (status !== 'DRAFT') {
-    alert(`This application cannot be submitted. Current status: ${application.status}\n\nOnly applications in DRAFT status can be submitted.`);
-    setIsSubmitModalOpen(false);
-    return;
-  }
-
   try {
     setLoading(true);
-    const response = await submitApplication(submittingAppId, {  // ✅ ALL FIELDS WITH DEFAULTS
-      confirmationStatement: submitFormData.confirmationStatement || "",
-      agreeToTerms: submitFormData.agreeToTerms || true,  // ✅ DEFAULT TO TRUE
-      additionalNotes: submitFormData.additionalNotes || "",
-      territory: submitFormData.territory || "",
-      degreeLevel: submitFormData.degreeLevel || ""
+    
+    // Get the selected application
+    const app = applications.find(a => a.id === submittingAppId);
+    
+    // Prepare the EXACT same payload as Postman
+    const payload = {
+      confirmationStatement: submitFormData.confirmationStatement || "TESTING confiramtion.",
+      agreeToTerms: submitFormData.agreeToTerms,
+      additionalNotes: submitFormData.additionalNotes || "TESTING."
+      // ❌ REMOVE territory and degreeLevel - Postman doesn't send these!
+    };
+
+    console.log('=== SUBMITTING APPLICATION ===');
+    console.log('Application ID:', submittingAppId);
+    console.log('Payload:', JSON.stringify(payload, null, 2));
+    
+    const response = await submitApplication(submittingAppId, payload);
+
+    // Success handling
+    setSubmitSuccessModal({
+      isOpen: true,
+      data: {
+        universityName: app?.universityName,
+        referenceNumber: response.data?.referenceNumber || response?.referenceNumber || app?.referenceNumber,
+        status: response.data?.status || 'Submitted',
+        submittedAt: response.data?.submittedAt
+      }
     });
 
-    console.log('Submit response:', response);
-    
-    // Show success message
-    // Show success message
-const data = response?.data || response;
-setSubmitSuccessModal({ 
-  isOpen: true, 
-  data: {
-    referenceNumber: data.referenceNumber || 'N/A',
-    status: data.status || 'Submitted',
-    universityName: applications.find(a => a.id === submittingAppId)?.universityName || 'University'
-  }
-});
-    // Reset form and close modal
     setIsSubmitModalOpen(false);
     setSubmittingAppId(null);
-    setSubmitFormData({
-      confirmationStatement: "",
-      agreeToTerms: false,
-      additionalNotes: ""
-    });
-    
-    // Refresh applications list
-    await loadApplications(false);
-    
+    await loadApplications(); // Refresh the list
+
   } catch (error) {
     console.error('Error submitting application:', error);
     
-    // Better error messaging
     const errorMessage = error?.message || '';
-    let userMessage = 'Failed to submit application.';
     
-    if (errorMessage.includes('not found')) {
-      userMessage = 'Application not found. It may have been deleted or you may not have access to it.';
-    } else if (errorMessage.includes('access denied')) {
-      userMessage = 'Access denied. You do not have permission to submit this application.';
-    } else if (errorMessage.includes('not submittable')) {
-      userMessage = 'This application cannot be submitted. It may have already been submitted or is in an invalid state.';
-    } else if (errorMessage.includes('400')) {
-      userMessage = 'Invalid request. Please ensure all required fields are completed.';
-    }
+    // Show error modal
+    setSubmitSuccessModal({
+      isOpen: true,
+      data: {
+        error: errorMessage || 'Failed to submit application. Please try again.',
+        referenceNumber: applications.find(a => a.id === submittingAppId)?.referenceNumber
+      }
+    });
     
-    setSubmitSuccessModal({ 
-  isOpen: true, 
-  data: { error: userMessage }
-});
+    setIsSubmitModalOpen(false);
+    setSubmittingAppId(null);
   } finally {
     setLoading(false);
   }
