@@ -350,7 +350,7 @@ const startGeneration = (toolId) => {
       setTimeout(() => simulateGeneration(), 100);
     }
   } else {
-    // LOR and Cover Letter have forms, go to step 1
+    // LOR and Cover Letter have forms, go to step 1 first
     setGenerationStep(1);
   }
 };
@@ -364,12 +364,14 @@ const startGeneration = (toolId) => {
     setGenerationStep(2); // Go to loading
     setTimeout(() => simulateGeneration(), 100);
   } else {
-    // For LOR and Cover Letter, go to form
-    setGenerationStep(1);
+    // Form already filled, now start generation
+    setGenerationStep(2);
+    setTimeout(() => simulateGeneration(selectedTool), 100);
   }
 };
 
-  const simulateGeneration = async () => {
+  const simulateGeneration = async (toolOverride = null) => {
+  const activeTool = toolOverride ?? selectedTool;
   setIsGenerating(true);
   setGenerationError(null); // Clear previous errors
   
@@ -380,13 +382,13 @@ const startGeneration = (toolId) => {
     let result;
     
     // Call the appropriate generation function based on selected tool
-    if (selectedTool === 'sop') {
-      result = await generateSOPWithN8N(formData);
-    } else if (selectedTool === 'lor') {
-      result = await generateLORWithN8N(formData);
-    } else if (selectedTool === 'cover') {
-      result = await generateCoverLetterWithN8N(formData);
-    }
+    if (activeTool === 'sop') {
+  result = await generateSOPWithN8N(formData);
+} else if (activeTool === 'lor') {
+  result = await generateLORWithN8N(formData);
+} else if (activeTool === 'cover') {
+  result = await generateCoverLetterWithN8N(formData);
+}
     
     console.log('[AITools] Generation result:', result);
     
@@ -399,7 +401,7 @@ if (result && result.success) {
   setTimeout(() => {
     setIsGenerating(false);
     setGenerationStep(3);
-  }, 40000); // 60000 milliseconds = 60 seconds = 1 minute
+  }, 20000); // 60000 milliseconds = 60 seconds = 1 minute
   
 } else {
   throw new Error('Generation failed - no content received');
@@ -576,8 +578,7 @@ if (result && result.success) {
 
 <Button
   onClick={() => {
-    handlePayment(); // Mark as paid
-    setGenerationStep(2); // Go to generation
+    handlePayment();
   }}
   className="px-8 py-3 bg-green-600 hover:bg-green-700"
   size="lg"
