@@ -655,6 +655,21 @@ export const getVisaAppointments = async () => {
   }
 };
 
+export const getMeetingUrl = async (section) => {
+  try {
+    const response = await apiRequest(`/api/v1/students/meeting-url?section=${section}`);
+    return response;
+  } catch (error) {
+    if (isNotFound(error)) {
+      console.warn(`[Meeting] meeting-url endpoint not available yet for section: ${section}.`);
+      return null;
+    }
+    console.error('Error fetching meeting URL:', error);
+    throw handleApiError(error);
+  }
+};
+
+
 export default {
   getStudentProfile,
   getProfileBuilder,
@@ -687,4 +702,5 @@ export default {
   getVisaTracker,
   updateVisaTracker,
   getVisaAppointments,
+  getMeetingUrl,
 };

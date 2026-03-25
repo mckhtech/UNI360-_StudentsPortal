@@ -32,6 +32,7 @@ import {
   getVisaTracker,
   updateVisaTracker,
   getVisaAppointments,
+  getMeetingUrl,
 } from "@/services/studentProfile.js";
 
 type Country = "DE" | "UK";
@@ -204,6 +205,11 @@ export default function Visa() {
 
   // Process-timeline — computed after derived values are set (see below)
 
+  // ── Meeting URL state ───────────────────────────────────────────
+  const [meetingUrl, setMeetingUrl]     = useState<string>("https://meet.google.com/bqr-dcwn-wka");
+  const [meetingLabel, setMeetingLabel] = useState<string>("Join Video Call Now");
+  const [meetingActive, setMeetingActive] = useState<boolean>(true);
+
   // ── Checklist state ─────────────────────────────────────────────
   const [checklistItems, setChecklistItems] = useState<string[]>([]);
   const [checklistTitle, setChecklistTitle] = useState<string>("");
@@ -317,6 +323,19 @@ export default function Visa() {
     }
   }, []);
 
+  const fetchMeetingUrl = useCallback(async () => {
+    try {
+      const res = await getMeetingUrl("VISA");
+      if (res === null) return; // API not live — keep fallback
+      const data = res?.data ?? res;
+      if (data?.url)     setMeetingUrl(data.url);
+      if (data?.label)   setMeetingLabel(data.label);
+      if (data?.isActive !== undefined) setMeetingActive(Boolean(data.isActive));
+    } catch {
+      // keep fallback values on error
+    }
+  }, []);
+
   // Re-fetch when country changes — reset all state first so no stale data flashes
   useEffect(() => {
     // Clear previous country's data
@@ -335,6 +354,7 @@ export default function Visa() {
     fetchTracker();    // tracker first — it populates checklistItems + progress
     fetchChecklist();  // provides title override if checklist API is live
     fetchAppointments();
+    fetchMeetingUrl(); // load meeting link for the help card
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCountry]);
 
@@ -392,7 +412,7 @@ export default function Visa() {
   // ── Handlers ────────────────────────────────────────────────────
 
   const handleGoogleMeetClick = () => {
-    window.open("https://meet.google.com/bqr-dcwn-wka", "_blank", "noopener,noreferrer");
+    window.open(meetingUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleDemandDraftDownload = () => {
@@ -884,7 +904,7 @@ export default function Visa() {
         </motion.section>
       )}
 
-      {/* ── HELP CARD ─────────────────────────────────────────────────── */}
+      {/* ── HELP CARD (dynamic meeting URL) ───────────────────────────── */}
       <motion.section
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -897,22 +917,51 @@ export default function Visa() {
                 <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-base sm:text-lg mb-2">Need Visa Assistance?</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-semibold text-base sm:text-lg">Need Visa Assistance?</h3>
+                  {meetingActive ? (
+                    <Badge className="rounded-full text-xs bg-green-100 text-green-700 border-0 px-2">
+                      Live
+                    </Badge>
+                  ) : (
+                    <Badge className="rounded-full text-xs bg-gray-100 text-gray-500 border-0 px-2">
+                      Offline
+                    </Badge>
+                  )}
+                </div>
                 <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                   Have questions about your visa application, document requirements, or interview
                   preparation? Schedule a video consultation with our visa specialists for
                   personalised guidance.
                 </p>
+                {meetingActive && (
+                  <p className="text-xs text-green-700 font-medium mt-1.5">
+                    📌 {meetingLabel}
+                  </p>
+                )}
               </div>
             </div>
-            <Button
-              size="sm"
-              className="bg-green-500 hover:bg-green-600 text-white rounded-full text-xs w-fit"
-              onClick={handleGoogleMeetClick}
-            >
-              <Phone className="w-3 h-3 mr-1.5" />
-              Join Video Call Now
-            </Button>
+
+            {meetingActive ? (
+              <Button
+                size="sm"
+                className="bg-green-500 hover:bg-green-600 text-white rounded-full text-xs w-fit"
+                onClick={handleGoogleMeetClick}
+              >
+                <Phone className="w-3 h-3 mr-1.5" />
+                {meetingLabel}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-full text-xs w-fit opacity-60 cursor-not-allowed"
+                disabled
+              >
+                <Phone className="w-3 h-3 mr-1.5" />
+                Currently Unavailable
+              </Button>
+            )}
           </div>
         </Card>
       </motion.section>
