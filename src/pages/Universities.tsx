@@ -81,6 +81,8 @@ const CourseModal = ({
 }) => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+const [itemsPerPage] = useState(9);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDegreeType, setSelectedDegreeType] = useState("all");
@@ -1706,6 +1708,8 @@ const [profileCompletionPercentage, setProfileCompletionPercentage] = useState(0
   // In the main Universities component, ADD these state variables right after your existing modal states (around line 1005, after isPaymentModalOpen)
   const [profileData, setProfileData] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(9);
 
   // Add this right after your state declarations to debug
 useEffect(() => {
@@ -2284,6 +2288,20 @@ const handlePaymentSuccess = async (university) => {
     return filtered;
   }, [universities, favorites, showFavorites, activeFilter, universityStats]);
 
+  // Pagination calculations
+const totalPages = Math.ceil(filteredUniversities.length / itemsPerPage);
+const indexOfLastItem = currentPage * itemsPerPage;
+const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+const currentUniversities = filteredUniversities.slice(indexOfFirstItem, indexOfLastItem);
+
+// Reset to page 1 when filters change
+// Reset to page 1 when filters change
+useEffect(() => {
+  setCurrentPage(1);
+}, [searchQuery, activeFilter, selectedCity, selectedState, selectedCourseFilter,
+    selectedLanguage, selectedDegreeType, selectedIntakeSeason, tuitionRange, 
+    gpaRange, scholarshipsOnly, universityType, institutionType, universityRanking, showFavorites]);
+
 
 // Add this helper function to convert date format (add after filteredUniversities useMemo, around line 150)
   const convertDateFormat = (dateStr) => {
@@ -2829,7 +2847,7 @@ const handlePaymentSuccess = async (university) => {
             </Button>
           </div>
         ) : filteredUniversities.length > 0 ? (
-          filteredUniversities.map((university) => (
+          currentUniversities.map((university) => (
             <motion.div
               key={university.id}
               variants={item}
@@ -2880,6 +2898,64 @@ const handlePaymentSuccess = async (university) => {
           </div>
         )}
       </motion.div>
+
+      {/* Pagination Controls */}
+      {!loading && !error && filteredUniversities.length > itemsPerPage && (
+        <div className="flex items-center justify-center gap-2 mt-8 pb-8">
+          <Button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            variant="outline"
+            size="sm"
+            className="h-10 w-10 p-0">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <div className="flex items-center gap-2">
+            {[...Array(totalPages)].map((_, index) => {
+              const pageNumber = index + 1;
+              if (
+                pageNumber === 1 ||
+                pageNumber === totalPages ||
+                (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+              ) {
+                return (
+                  <Button
+                    key={pageNumber}
+                    onClick={() => setCurrentPage(pageNumber)}
+                    variant={currentPage === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "h-10 w-10 p-0",
+                      currentPage === pageNumber && "bg-[#E08D3C] hover:bg-[#c77a32] text-white"
+                    )}>
+                    {pageNumber}
+                  </Button>
+                );
+              } else if (
+                pageNumber === currentPage - 2 ||
+                pageNumber === currentPage + 2
+              ) {
+                return <span key={pageNumber} className="px-2">...</span>;
+              }
+              return null;
+            })}
+          </div>
+
+          <Button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            variant="outline"
+            size="sm"
+            className="h-10 w-10 p-0">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          
+          <span className="ml-4 text-sm text-gray-600">
+            Page {currentPage} of {totalPages} ({filteredUniversities.length} universities)
+          </span>
+        </div>
+      )}
 
       {/* Course Selection Modal - Opens First */}
 {/* Course Selection Modal - Opens First */}

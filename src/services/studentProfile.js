@@ -589,6 +589,72 @@ export const removeCourseFromFavorites = async (courseId) => {
   }
 };
 
+// ==================== VISA ENDPOINTS ====================
+
+const isNotFound = (error) =>
+  error?.message?.includes('404') ||
+  error?.message?.includes('Resource not found') ||
+  error?.message?.includes('Not Found');
+
+export const getVisaChecklist = async (country) => {
+  try {
+    const response = await apiRequest(`/api/v1/students/visa/checklist?country=${country}`);
+    return response;
+  } catch (error) {
+    if (isNotFound(error)) {
+      console.warn('[Visa] Checklist endpoint not available yet, using static fallback.');
+      return null;
+    }
+    console.error('Error fetching visa checklist:', error);
+    throw handleApiError(error);
+  }
+};
+
+export const getVisaTracker = async (country) => {
+  try {
+    const response = await apiRequest(`/api/v1/students/visa/tracker?country=${country}`);
+    return response;
+  } catch (error) {
+    if (isNotFound(error)) {
+      console.warn('[Visa] Tracker endpoint not available yet, using static fallback.');
+      return null;
+    }
+    console.error('Error fetching visa tracker:', error);
+    throw handleApiError(error);
+  }
+};
+
+export const updateVisaTracker = async (payload) => {
+  try {
+    const response = await apiRequest('/api/v1/students/visa/tracker', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return response;
+  } catch (error) {
+    if (isNotFound(error)) {
+      console.warn('[Visa] Tracker update endpoint not available yet, skipping persist.');
+      return null;
+    }
+    console.error('Error updating visa tracker:', error);
+    throw handleApiError(error);
+  }
+};
+
+export const getVisaAppointments = async () => {
+  try {
+    const response = await apiRequest('/api/v1/students/visa/appointments');
+    return response;
+  } catch (error) {
+    if (isNotFound(error)) {
+      console.warn('[Visa] Appointments endpoint not available yet, returning empty list.');
+      return null;
+    }
+    console.error('Error fetching visa appointments:', error);
+    throw handleApiError(error);
+  }
+};
+
 export default {
   getStudentProfile,
   getProfileBuilder,
@@ -617,4 +683,8 @@ export default {
   getProfileCompletionPercentage,
   saveProfileData,
   loadProfileData,
+  getVisaChecklist,
+  getVisaTracker,
+  updateVisaTracker,
+  getVisaAppointments,
 };

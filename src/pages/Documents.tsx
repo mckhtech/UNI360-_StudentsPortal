@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Upload, FileText, CheckCircle, Calendar, Eye, Info, X, File, Loader2, AlertCircle } from "lucide-react";
 import { makeAuthenticatedRequest } from "@/services/tokenService";
 import { Trash2, ExternalLink } from "lucide-react";
+import { getStudentProfile } from "@/services/studentProfile";
 
 
 type Country = "DE" | "UK";
@@ -373,16 +374,18 @@ useEffect(() => {
     try {
       setLoading(true);
       
-      const [pendingResponse, uploadedResponse, myDocsResponse, overviewResponse] = await Promise.all([
+      const [pendingResponse, uploadedResponse, myDocsResponse, overviewResponse, profileResponse] = await Promise.all([
         makeAuthenticatedRequest('/api/v1/students/documents/pending', { method: 'GET' }),
         makeAuthenticatedRequest('/api/v1/students/documents/uploaded', { method: 'GET' }),
         makeAuthenticatedRequest('/api/v1/documents/my', { method: 'GET' }),
-        makeAuthenticatedRequest('/api/v1/students/documents/overview', { method: 'GET' }).catch(() => null)
+        makeAuthenticatedRequest('/api/v1/students/documents/overview', { method: 'GET' }).catch(() => null),
+        getStudentProfile().catch(() => null) // Fetch profile data for passport and transcripts
       ]);
       
       console.log("[Documents] Pending response:", pendingResponse);
       console.log("[Documents] Uploaded response:", uploadedResponse);
       console.log("[Documents] My documents response:", myDocsResponse);
+      console.log("[Documents] Profile response:", profileResponse);
       
       // Create a map of filename to document ID from /my endpoint
       const filenameToIdMap = new Map();
@@ -450,7 +453,66 @@ useEffect(() => {
         };
       });
 
-      const allDocs = [...pendingMapped, ...uploadedMapped];
+      // Map Profile Builder documents (Passport and Academic Transcripts)
+      const profileBuilderDocs: Document[] = [];
+      
+      if (profileResponse?.data) {
+        const profileData = profileResponse.data;
+        
+        // Extract passport_copy from profile
+        if (profileData.documents?.passport_copy) {
+          console.log("[Documents] Found passport_copy in profile:", profileData.documents.passport_copy);
+          const passportFile = profileData.documents.passport_copy;
+          
+          // Only add if not already in uploaded documents
+          const passportAlreadyExists = uploadedMapped.some(d => d.field === 'passport');
+          if (!passportAlreadyExists) {
+            const passportDocId = filenameToIdMap.get(passportFile.filename || passportFile.name);
+            profileBuilderDocs.push({
+              id: `profile-passport`,
+              field: 'passport',
+              label: 'Passport',
+              required: true,
+              priority: 'high' as const,
+              description: 'Uploaded from Profile Builder',
+              status: 'uploaded' as const,
+              uploadDate: passportFile.upload_date ? new Date(passportFile.upload_date).toLocaleDateString() : undefined,
+              fileName: passportFile.filename || passportFile.name,
+              uploadedId: passportDocId,
+              fileSize: passportFile.file_size,
+              viewUrlAvailable: true,
+            });
+          }
+        }
+        
+        // Extract academic_transcripts from profile
+        if (profileData.documents?.academic_transcripts) {
+          console.log("[Documents] Found academic_transcripts in profile:", profileData.documents.academic_transcripts);
+          const transcriptFile = profileData.documents.academic_transcripts;
+          
+          // Only add if not already in uploaded documents
+          const transcriptAlreadyExists = uploadedMapped.some(d => d.field === 'academic_transcripts');
+          if (!transcriptAlreadyExists) {
+            const transcriptDocId = filenameToIdMap.get(transcriptFile.filename || transcriptFile.name);
+            profileBuilderDocs.push({
+              id: `profile-transcript`,
+              field: 'academic_transcripts',
+              label: 'Academic Transcripts',
+              required: true,
+              priority: 'high' as const,
+              description: 'Uploaded from Profile Builder',
+              status: 'uploaded' as const,
+              uploadDate: transcriptFile.upload_date ? new Date(transcriptFile.upload_date).toLocaleDateString() : undefined,
+              fileName: transcriptFile.filename || transcriptFile.name,
+              uploadedId: transcriptDocId,
+              fileSize: transcriptFile.file_size,
+              viewUrlAvailable: true,
+            });
+          }
+        }
+      }
+
+      const allDocs = [...pendingMapped, ...uploadedMapped, ...profileBuilderDocs];
       console.log("[Documents] ðŸ“Š Final mapped documents:", allDocs);
       setDocuments(allDocs);
       

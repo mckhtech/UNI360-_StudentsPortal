@@ -47,7 +47,7 @@ import { getAuthHeaders, makeAuthenticatedRequest } from "@/services/tokenServic
 
 // n8n SOP Generator Configuration
 // n8n Configuration - Add at the top of AITools.tsx (around line 30)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.uniflow.kartonmeister.com';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend.uni360degree.com';
 
 const N8N_CONFIG = {
   sop: {
