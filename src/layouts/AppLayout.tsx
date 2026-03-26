@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { FloatingSidebar } from "@/components/ui/floating-sidebar";
 import { BottomNavigation } from "@/components/ui/bottom-navigation";
 import { CountryToggle } from "@/components/ui/country-toggle";
+import { Footer } from "@/components/ui/Footer";
 import { Bell, User, Settings, LogOut, ChevronDown, X, CheckCheck, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -705,6 +706,7 @@ export function AppLayout() {
           <div className="mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8 max-w-7xl">
             <Outlet context={{ selectedCountry }} />
           </div>
+          <Footer />
         </div>
         <BottomNavigation />
       </main>

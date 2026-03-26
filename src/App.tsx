@@ -22,6 +22,9 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import RefundPolicy from "./pages/RefundPolicy";
+import CancellationPolicy from "./pages/CancellationPolicy";
+import Pricing from "./pages/Pricing";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
@@ -44,10 +47,13 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* Public login route */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/terms" element={<TermsOfService />} />
+              {/* Public routes — no auth required */}
+              <Route path="/login"   element={<Login />} />
+              <Route path="/terms"   element={<TermsOfService />} />
               <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/refund"  element={<RefundPolicy />} />
+              <Route path="/cancellation" element={<CancellationPolicy />} />
+              <Route path="/pricing" element={<Pricing />} />
 
               {/* Protected routes - ensure ProtectedRoute wraps AppLayout, not individual routes */}
               <Route element={<ProtectedRoute />}>

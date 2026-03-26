@@ -1,199 +1,92 @@
-import React from "react";
-import { ArrowLeft, GraduationCap } from "lucide-react";
+import { Link } from "react-router-dom";
+import { FileText, ArrowLeft } from "lucide-react";
 
-const TermsOfService: React.FC = () => {
-  const handleBack = () => {
-    window.history.back();
-  };
+const sections = [
+  {
+    title: "1. Services",
+    body: `UNI360 provides: study abroad guidance; eligibility assessment; document handling (APS, SOP, visa process); and AI-powered recommendations. We do not guarantee admission or visa approval.`,
+  },
+  {
+    title: "2. User Responsibilities",
+    body: `You agree to: provide accurate and complete information; not misuse the platform; and maintain confidentiality of your account credentials.`,
+  },
+  {
+    title: "3. Payments",
+    body: `All payments must be made through approved payment methods. Pricing is displayed transparently on the platform. Services will begin only after successful payment.`,
+  },
+  {
+    title: "4. Service Limitations",
+    body: `UNI360 acts as a facilitator and guide. Final decisions are made by universities, government authorities, and visa officers. We do not guarantee any specific outcome for applications or visa processes.`,
+  },
+  {
+    title: "5. Intellectual Property",
+    body: `All platform content, design, and features are owned by UNI360 and may not be copied or reused without prior written permission.`,
+  },
+  {
+    title: "6. Account Suspension",
+    body: `We reserve the right to suspend or terminate accounts if false information is provided or if the platform is misused in any way.`,
+  },
+  {
+    title: "7. Limitation of Liability",
+    body: `UNI360 is not responsible for visa rejection, admission denial, or delays caused by third parties including universities, government bodies, or payment processors.`,
+  },
+  {
+    title: "8. Termination",
+    body: `We may terminate your access to the platform at any time if these terms are violated, with or without notice at our discretion.`,
+  },
+  {
+    title: "9. Governing Law",
+    body: `These terms are governed by the laws of India. Any disputes arising from the use of the platform shall be subject to the jurisdiction of the courts of India.`,
+  },
+  {
+    title: "10. Contact",
+    body: `For any queries regarding these Terms & Conditions, please contact us at:\nEmail: inquire@uni360degree.com\nPhone: +91 98765 43210`,
+  },
+];
 
+export default function TermsOfService() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - matches dashboard style */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center space-x-4">
-              <button 
-                className="flex items-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors"
-                onClick={handleBack}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-[#E49B0F] rounded-lg flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-gray-900">UNI360</span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50/20 to-amber-50/10">
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
+          <Link to="/dashboard" className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5 text-orange-600" />
+            <span className="font-semibold text-slate-800">Terms &amp; Conditions</span>
           </div>
         </div>
       </div>
 
-      {/* Hero Section - Simple header without gradient */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16 text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-            Terms of Use
-          </h1>
-          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
-            Please read these terms carefully before using our website and services.
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        <div className="mb-12 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-6">
+            <FileText className="w-8 h-8 text-orange-600" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">Terms &amp; Conditions</h1>
+          <p className="text-slate-500 text-sm">Effective Date: March 26, 2026</p>
+          <p className="mt-4 text-slate-600 max-w-xl mx-auto leading-relaxed">
+            By accessing and using UNI360°, you agree to the following terms. Please read them carefully before using our platform.
           </p>
-          <div className="mt-8">
-            <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
-              Last updated: 18 December 2023
-            </span>
-          </div>
         </div>
-      </div>
 
-      {/* Content - matches dashboard card style */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-        <div className="bg-white rounded-xl shadow-sm border p-6 lg:p-8">
-          <div className="prose prose-gray max-w-none">
-            <div className="mb-8 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-              <p className="text-gray-700 mb-0">
-                Welcome to UNI360°. By accessing and using our website, you agree to comply with and be bound by the following terms and conditions. If you do not agree with these terms, please refrain from using our website.
-              </p>
+        <div className="space-y-8">
+          {sections.map((s) => (
+            <div key={s.title} className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+              <h2 className="text-lg font-semibold text-slate-900 mb-3">{s.title}</h2>
+              <p className="text-slate-600 leading-relaxed text-sm sm:text-base whitespace-pre-line">{s.body}</p>
             </div>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">2</span>
-                Services Description
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  UNI360° provides visa consulting services. The information on the Site is for general informational purposes only and does not constitute professional advice. We reserve the right to modify or discontinue any aspect of the services without notice.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">3</span>
-                User Responsibilities
-              </h2>
-              <div className="ml-11">
-                <ul className="space-y-2 text-gray-600">
-                  <li className="flex items-start">
-                    <span className="w-2 h-2 bg-[#E49B0F] rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    You agree to provide accurate and complete information when using our services
-                  </li>
-                  <li className="flex items-start">
-                    <span className="w-2 h-2 bg-[#E49B0F] rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    You are responsible for maintaining the confidentiality of your account credentials
-                  </li>
-                  <li className="flex items-start">
-                    <span className="w-2 h-2 bg-[#E49B0F] rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    You must not engage in any activity that interferes with or disrupts the Site's functionality
-                  </li>
-                </ul>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">4</span>
-                Intellectual Property
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  The content, trademarks, logos, and other materials on the Site are owned by UNI360° and protected by intellectual property laws. You may not reproduce, distribute, or display any portion of the Site without our prior written consent.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">5</span>
-                Privacy Policy
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  Our Privacy Policy outlines how we collect, use, and safeguard your personal information. By using the Site, you consent to the practices described in the Privacy Policy.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">6</span>
-                Limitation of Liability
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  UNI360° is not liable for any direct, indirect, incidental, consequential, or punitive damages arising out of your access to or use of the Site. This limitation applies to the fullest extent permitted by applicable law.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">7</span>
-                Governing Law
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  These Terms of Use are governed by and construed in accordance with the laws of Vadodara. Any legal action arising out of or relating to these terms shall be filed only in the courts located in Vadodara, and you consent to the exclusive jurisdiction of such courts.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">8</span>
-                Termination
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  We reserve the right to terminate or suspend your access to the Site, with or without notice, for any reason, including a breach of these terms.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">9</span>
-                Contact Information
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  If you have any questions or concerns about these Terms of Use, please contact us at{' '}
-                  <a 
-                    href="mailto:support@uni360degree.com" 
-                    className="text-[#E49B0F] hover:text-[#D97706] underline font-semibold transition-colors"
-                  >
-                    support@uni360degree.com
-                  </a>
-                  .
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">10</span>
-                Entire Agreement
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  These Terms of Use constitute the entire agreement between you and UNI360° regarding your use of the Site, superseding any prior agreements.
-                </p>
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-0">
-                    This Terms of Use was last updated on <strong>18 December 2023</strong>.
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
+          ))}
         </div>
+
+        <p className="mt-10 text-center text-sm text-slate-400">
+          © {new Date().getFullYear()} UNI360°. ·{" "}
+          <Link to="/privacy" className="hover:text-orange-600 transition-colors">Privacy Policy</Link>
+          {" · "}
+          <Link to="/refund" className="hover:text-orange-600 transition-colors">Refund Policy</Link>
+        </p>
       </div>
     </div>
   );
-};
-
-export default TermsOfService;
+}

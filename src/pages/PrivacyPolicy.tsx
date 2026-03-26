@@ -1,226 +1,95 @@
+import { Link } from "react-router-dom";
+import { Shield, ArrowLeft } from "lucide-react";
 
-import React from "react";
-import { ArrowLeft, GraduationCap } from "lucide-react";
+const sections = [
+  {
+    title: "1. Information We Collect",
+    body: `We may collect the following types of information: Personal details such as name, email address, and phone number; Academic information including qualifications, documents, and eligibility details; Visa-related data such as passport details, APS documents, and application data; Payment details — transaction information processed securely via third-party providers; and Usage data including device info, IP address, and browser type.`,
+  },
+  {
+    title: "2. How We Use Your Information",
+    body: `We use your data to: provide eligibility checks and university recommendations; process visa-related workflows (APS, SOP, documentation); enable account access and dashboard functionality; improve platform performance and user experience; and communicate updates, notifications, and support.`,
+  },
+  {
+    title: "3. Payment Processing",
+    body: `We do not store your card or banking details. All payments are processed securely through third-party payment gateways.`,
+  },
+  {
+    title: "4. Data Sharing",
+    body: `We may share data with: trusted service providers (payment gateways, hosting, analytics); universities or partners (only when required for your application); and legal authorities if required by law.`,
+  },
+  {
+    title: "5. Data Security",
+    body: `We implement appropriate technical and organizational measures to protect your data against unauthorized access, misuse, or disclosure.`,
+  },
+  {
+    title: "6. Data Retention",
+    body: `We retain your data only as long as necessary for service delivery and legal compliance.`,
+  },
+  {
+    title: "7. Your Rights",
+    body: `You have the right to access your data, request correction or deletion, and withdraw consent at any time by contacting us at inquire@uni360degree.com.`,
+  },
+  {
+    title: "8. Cookies",
+    body: `We use cookies to enhance user experience and analyze traffic. You can control cookie settings through your browser, though disabling them may affect some platform features.`,
+  },
+  {
+    title: "9. Changes to This Policy",
+    body: `We may update this policy from time to time. Continued use of the platform after changes are posted indicates acceptance of the updated policy.`,
+  },
+  {
+    title: "10. Contact Us",
+    body: `For any questions, contact us at:\nEmail: inquire@uni360degree.com\nPhone: +91 98765 43210\nLocations: India · Germany · United Kingdom`,
+  },
+];
 
-const PrivacyPolicy: React.FC = () => {
-  const handleBack = () => {
-    window.history.back();
-  };
-
+export default function PrivacyPolicy() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - matches dashboard style */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center space-x-4">
-              <button 
-                className="flex items-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-3 py-2 rounded-md transition-colors"
-                onClick={handleBack}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </button>
-              
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-[#E49B0F] rounded-lg flex items-center justify-center">
-                  <GraduationCap className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-gray-900">UNI360</span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+      {/* Header */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
+          <Link to="/dashboard" className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-600 hover:text-slate-900">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-blue-600" />
+            <span className="font-semibold text-slate-800">Privacy Policy</span>
           </div>
         </div>
       </div>
 
-      {/* Hero Section - Simple header without gradient */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16 text-center">
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-            Privacy Policy
-          </h1>
-          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
-            Your privacy is important to us. Learn how we collect, use, and protect your information.
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
+        {/* Hero */}
+        <div className="mb-12 text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-6">
+            <Shield className="w-8 h-8 text-blue-600" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-3">Privacy Policy</h1>
+          <p className="text-slate-500 text-sm">Effective Date: March 26, 2026</p>
+          <p className="mt-4 text-slate-600 max-w-xl mx-auto leading-relaxed">
+            At UNI360°, we value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information when you use our platform.
           </p>
-          <div className="mt-8">
-            <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
-              Last updated: 18 December 2023
-            </span>
-          </div>
         </div>
-      </div>
 
-      {/* Content - matches dashboard card style */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
-        <div className="bg-white rounded-xl shadow-sm border p-6 lg:p-8">
-          <div className="prose prose-gray max-w-none">
-            <div className="mb-8">
-              <p className="text-gray-600 text-lg leading-relaxed">
-                This Privacy Policy outlines the types of personal information we collect, how we use it, and the choices you have regarding your information.
-              </p>
+        {/* Sections */}
+        <div className="space-y-8">
+          {sections.map((s) => (
+            <div key={s.title} className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-100">
+              <h2 className="text-lg font-semibold text-slate-900 mb-3">{s.title}</h2>
+              <p className="text-slate-600 leading-relaxed text-sm sm:text-base whitespace-pre-line">{s.body}</p>
             </div>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">1</span>
-                Information We Collect
-              </h2>
-              
-              <div className="ml-11 space-y-6">
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">1.1 Personal Information</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    We may collect personal information, such as names, contact details, and other relevant details, when you voluntarily provide it to us through our website, forms, or in communication with our team.
-                  </p>
-                </div>
-
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">1.2 Payment Information</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    When making payments for our services, we may collect payment details such as credit card information. This information is securely processed, and we do not store payment details on our servers.
-                  </p>
-                </div>
-
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">1.3 Cookies and Tracking</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    Our website may use cookies and similar tracking technologies to enhance user experience, analyze trends, and administer the website. You can control the use of cookies through your browser settings.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">2</span>
-                How We Use Your Information
-              </h2>
-              
-              <div className="ml-11 space-y-6">
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">2.1 Providing Services</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    We use the information you provide to deliver our visa consulting services, process applications, and communicate with you about your visa or related matters.
-                  </p>
-                </div>
-
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">2.2 Communication</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    We may use your contact information to send you updates, newsletters, and relevant information about our services. You can opt out of these communications at any time.
-                  </p>
-                </div>
-
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">2.3 Improving Our Services</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    We may use aggregated and anonymized data to analyze trends and improve our services. This information does not identify individual users.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">3</span>
-                Sharing Your Information
-              </h2>
-              
-              <div className="ml-11 space-y-6">
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">3.1 Third-Party Service Providers</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    We may share your information with trusted third-party service providers who assist us in delivering our services, processing payments, or analyzing website performance.
-                  </p>
-                </div>
-
-                <div className="border-l-2 border-gray-200 pl-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">3.2 Legal Requirements</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    We may disclose your information if required to do so by law or in response to legal requests.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">4</span>
-                Security
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  We take reasonable measures to protect your personal information from unauthorized access, use, or disclosure. However, no data transmission over the internet can be guaranteed to be completely secure.
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">5</span>
-                Your Choices
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  You have the right to:
-                </p>
-                <ul className="space-y-2 text-gray-600">
-                  <li className="flex items-start">
-                    <span className="w-2 h-2 bg-[#E49B0F] rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    Access and correct your personal information
-                  </li>
-                  <li className="flex items-start">
-                    <span className="w-2 h-2 bg-[#E49B0F] rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    Opt out of receiving marketing communications
-                  </li>
-                  <li className="flex items-start">
-                    <span className="w-2 h-2 bg-[#E49B0F] rounded-full mt-2 mr-3 flex-shrink-0"></span>
-                    Request the deletion of your personal information, subject to legal requirements
-                  </li>
-                </ul>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">6</span>
-                Contact Us
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  If you have any questions or concerns about our Privacy Policy or the handling of your personal information, please contact us at{' '}
-                  <a 
-                    href="mailto:support@uni360degree.com" 
-                    className="text-[#E49B0F] hover:text-[#D97706] underline font-semibold transition-colors"
-                  >
-                    support@uni360degree.com
-                  </a>
-                  .
-                </p>
-              </div>
-            </section>
-
-            <section className="mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="w-8 h-8 bg-[#E49B0F] text-white rounded-lg flex items-center justify-center text-sm font-bold mr-3">7</span>
-                Changes to the Privacy Policy
-              </h2>
-              <div className="ml-11">
-                <p className="text-gray-600 leading-relaxed mb-4">
-                  We may update our Privacy Policy to reflect changes in our practices or applicable laws. The updated policy will be posted on our website.
-                </p>
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500 mb-0">
-                    This Privacy Policy was last updated on <strong>18 December 2023</strong>.
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
+          ))}
         </div>
+
+        <p className="mt-10 text-center text-sm text-slate-400">
+          © {new Date().getFullYear()} UNI360°. All rights reserved. ·{" "}
+          <Link to="/terms" className="hover:text-blue-600 transition-colors">Terms & Conditions</Link>
+          {" · "}
+          <Link to="/refund" className="hover:text-blue-600 transition-colors">Refund Policy</Link>
+        </p>
       </div>
     </div>
   );
-};
-
-export default PrivacyPolicy;
+}
