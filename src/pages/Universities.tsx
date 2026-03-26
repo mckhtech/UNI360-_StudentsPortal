@@ -103,36 +103,88 @@ const loadCourses = async () => {
   try {
     setLoading(true);
     setError(null);
-    
+
+    console.log('[CourseModal] Reading courses from university object (embedded in list API)...');
+    console.log('[CourseModal] Selected university:', university?.name);
+
+    // ── PRIMARY: use courses already embedded in the university object ────────
+    // The GET /api/v1/universities list endpoint returns each university with a
+    // nested `courses` array, so we avoid an extra round-trip.
+    const rawCourses: any[] = university?.courses || [];
+    console.log('[CourseModal] Courses from university object:', rawCourses.length);
+
+    // Map to the internal format the rest of the UI expects
+    const mappedCourses = rawCourses.map((course: any) => ({
+      // ── Keep ALL original API fields (needed by backend when creating application) ──
+      id: course.id,
+      universityId: course.universityId ?? university?.id,
+      universityName: course.universityName ?? university?.name,
+      universityCode: course.universityCode ?? university?.code,
+      universityCountry: course.universityCountry ?? university?.country,
+      name: course.name,
+      courseCode: course.courseCode,
+      degreeLevel: course.degreeLevel ?? course.degree_level,
+      degreeType: course.degreeType ?? course.degree_type,
+      fieldOfStudy: course.fieldOfStudy ?? course.field_of_study ?? course.subject_area,
+      studyMode: course.studyMode ?? course.study_mode,
+      durationYears: course.durationYears ?? course.duration_years,
+      tuitionInternational: course.tuitionInternational ?? course.tuition_fee ?? course.tuition_fee_international,
+      currency: course.currency ?? 'EUR',
+      scholarshipsAvailable: course.scholarshipsAvailable ?? course.scholarships_available,
+      intakeSeasons: course.intakeSeasons ?? (course.intake_season ? [course.intake_season] : []),
+      applicationDeadline: course.applicationDeadline,
+      careerOpportunities: course.careerOpportunities ?? [],
+      isPopular: course.isPopular ?? course.is_popular,
+      rating: course.rating,
+      hasApplied: course.hasApplied ?? course.has_applied,
+      isFavorite: course.isFavorite ?? course.is_favorite,
+      canApplyNow: course.canApplyNow ?? course.can_apply_now,
+
+      // ── Mapped / display fields ───────────────────────────────────────────
+      university_id: course.universityId ?? university?.id,
+      subject_area: course.fieldOfStudy ?? course.field_of_study ?? course.subject_area ?? '',
+      degree_type: (course.degreeLevel ?? course.degree_level ?? 'masters').toLowerCase(),
+      degree_level: course.degreeType ?? course.degree_type,
+      language: course.language ?? 'English',
+      duration_months: ((course.durationYears ?? course.duration_years) || 2) * 12,
+      duration_years: course.durationYears ?? course.duration_years,
+      intake_season: (course.intakeSeasons ?? [])[0] ?? course.intake_season ?? 'WINTER',
+      tuition_fee: course.tuitionInternational ?? course.tuition_fee ?? course.tuition_fee_international ?? 0,
+      min_gpa: course.min_gpa ?? '2.5',
+      min_ielts: course.min_ielts ?? '6.5',
+      study_mode: course.studyMode ?? course.study_mode,
+      scholarships_available: course.scholarshipsAvailable ?? course.scholarships_available,
+      is_popular: course.isPopular ?? course.is_popular,
+      has_applied: course.hasApplied ?? course.has_applied,
+      is_favorite: course.isFavorite ?? course.is_favorite,
+      can_apply_now: course.canApplyNow ?? course.can_apply_now,
+      description: course.description ?? `${course.degreeType ?? course.degree_type ?? ''} in ${course.fieldOfStudy ?? course.field_of_study ?? ''}`,
+    }));
+
+    console.log('[CourseModal] ✅ Mapped courses:', mappedCourses.length);
+    setCourses(mappedCourses);
+
+    /* ── COMMENTED OUT: separate courses API (mixed data in DB — restore when clean) ──
     console.log('[CourseModal] Fetching ALL courses from API...');
-    console.log('[CourseModal] Selected university:', university);
-    
-    // Fetch all courses from the API
     const response = await getAllCourses();
-    
     console.log('[CourseModal] Raw courses API response:', response);
-    
-    // Extract courses array
+
     let coursesArray = [];
     if (Array.isArray(response)) {
       coursesArray = response;
     } else if (response?.data && Array.isArray(response.data)) {
       coursesArray = response.data;
     }
-    
+
     console.log('[CourseModal] Total courses from API:', coursesArray.length);
-    
-    // Filter courses for the selected university
+
     const universityCourses = coursesArray.filter(
       course => course.universityId === university.id
     );
-    
+
     console.log('[CourseModal] Courses for this university:', universityCourses.length);
-    
-    // CRITICAL: PRESERVE ALL ORIGINAL API FIELDS
-    // Map API response to internal format while keeping original fields
-    const mappedCourses = universityCourses.map(course => ({
-      // Keep ALL original API fields (these are what the backend needs)
+
+    const mappedCoursesFromApi = universityCourses.map(course => ({
       id: course.id,
       universityId: course.universityId,
       universityName: course.universityName,
@@ -140,7 +192,7 @@ const loadCourses = async () => {
       universityCountry: course.universityCountry,
       name: course.name,
       courseCode: course.courseCode,
-      degreeLevel: course.degreeLevel,           // CRITICAL: Keep as MASTERS/BACHELORS
+      degreeLevel: course.degreeLevel,
       degreeType: course.degreeType,
       fieldOfStudy: course.fieldOfStudy,
       studyMode: course.studyMode,
@@ -156,8 +208,6 @@ const loadCourses = async () => {
       hasApplied: course.hasApplied,
       isFavorite: course.isFavorite,
       canApplyNow: course.canApplyNow,
-      
-      // ALSO keep mapped fields for UI display (backward compatibility)
       university_id: course.universityId,
       subject_area: course.fieldOfStudy,
       degree_type: course.degreeLevel?.toLowerCase() || 'masters',
@@ -177,13 +227,10 @@ const loadCourses = async () => {
       can_apply_now: course.canApplyNow,
       description: `${course.degreeType} in ${course.fieldOfStudy}`,
     }));
-    
-    console.log('[CourseModal] ✅ Mapped courses with preserved fields:', mappedCourses);
-    console.log('[CourseModal] Sample course degreeLevel:', mappedCourses[0]?.degreeLevel);
-    console.log('[CourseModal] Sample course universityCountry:', mappedCourses[0]?.universityCountry);
-    
-    setCourses(mappedCourses);
-    
+
+    setCourses(mappedCoursesFromApi);
+    ── END COMMENTED OUT ── */
+
   } catch (err) {
     console.error("❌ Error loading courses:", err);
     setError("Failed to load courses. Please try again.");
@@ -192,6 +239,7 @@ const loadCourses = async () => {
     setLoading(false);
   }
 };
+
 
   const filteredCourses = useMemo(() => {
     return courses.filter((course) => {
@@ -1649,38 +1697,22 @@ const PaymentModal = ({ university, isOpen, onClose, onSuccess, course }) => {
             </div>
           )}
 
-          {/* Razorpay button — hidden once verified */}
+          {/* Razorpay button — already verifies signature internally before calling onSuccess */}
           {!verified && paymentHealthy && (
             <RazorpayButton
               amount={100}
               label="Pay ₹1 & Submit Application"
               description={`Application fee — ${university?.name}`}
-              notes={{ purpose: "Application Fee", universityId: university?.id, section: "UNIVERSITIES" }}
-              receipt={`app_fee_${university?.id}_${Date.now()}`}
+              notes={{ purpose: "Application Fee", section: "UNIVERSITIES" }}
+              receipt={`af_${(university?.id ?? '').slice(0, 8)}_${Date.now().toString().slice(-8)}`}
               className="w-full bg-[#2C3539] hover:bg-[#1e2529] text-white"
-              onSuccess={async (paymentData) => {
-                console.log('[Universities] Razorpay callback, verifying…', paymentData);
-                setVerifying(true);
-                setVerifyError(null);
-                try {
-                  const ok = await verifyPayment({
-                    razorpay_order_id:    paymentData.razorpay_order_id,
-                    razorpay_payment_id:  paymentData.razorpay_payment_id,
-                    razorpay_signature:   paymentData.razorpay_signature,
-                  });
-                  if (!ok) throw new Error("Signature mismatch");
-                  console.log('[Universities] ✅ Payment verified');
-                  setVerified(true);
-                  // Download receipt
-                  downloadReceipt(paymentData);
-                  // Navigate to application after short delay
-                  setTimeout(() => onSuccess(university), 1500);
-                } catch (err: any) {
-                  console.error('[Universities] Verification failed:', err);
-                  setVerifyError("Payment verification failed. Please contact support with Payment ID: " + (paymentData?.razorpay_payment_id ?? "N/A"));
-                } finally {
-                  setVerifying(false);
-                }
+              onSuccess={(paymentData) => {
+                // RazorpayButton already verified the signature before calling this.
+                // Just download the receipt and proceed.
+                console.log('[Universities] ✅ Payment verified by RazorpayButton:', paymentData);
+                setVerified(true);
+                downloadReceipt(paymentData);
+                setTimeout(() => onSuccess(university), 1500);
               }}
               onFailure={(err) => {
                 console.error('[Universities] Payment failed:', err);
@@ -2017,60 +2049,104 @@ useEffect(() => {
   }
 };
 
-// Load favorite courses from API
+// Load favorite courses — read from the universities already in state
+// (courses are embedded in each university from the list API, no extra call needed)
 const loadFavorites = async () => {
   try {
     setFavoritesLoading(true);
+    console.log('[Universities] Building favorites from embedded courses...');
+
+    // Collect all courses from every university in state, keep only favorites
+    const favoriteCourses: any[] = [];
+    universities.forEach(uni => {
+      (uni.courses || []).forEach((course: any) => {
+        if (course.isFavorite === true || course.is_favorite === true) {
+          favoriteCourses.push({
+            ...course,
+            // ensure university fields are present in case they're missing
+            universityId: course.universityId ?? uni.id,
+            universityName: course.universityName ?? uni.name,
+            universityCode: course.universityCode ?? uni.code,
+            universityCountry: course.universityCountry ?? uni.country,
+          });
+        }
+      });
+    });
+
+    console.log('[Universities] Found', favoriteCourses.length, 'favorite courses');
+
+    // Group by university (same structure as before — preserves downstream UI)
+    const universitiesWithFavorites: Record<string, any> = {};
+
+    favoriteCourses.forEach(course => {
+      const uniId = course.universityId;
+
+      if (!universitiesWithFavorites[uniId]) {
+        // Find full university object so we keep image_url etc.
+        const fullUni = universities.find(u => u.id === uniId);
+        universitiesWithFavorites[uniId] = {
+          ...(fullUni ?? {}),
+          id: uniId,
+          name: course.universityName,
+          code: course.universityCode,
+          country: course.universityCountry,
+          city: fullUni?.city ?? course.universityCountry,
+          image_url: fullUni?.image_url ?? null,
+          total_courses: 0,
+          courses: [],
+        };
+      }
+
+      universitiesWithFavorites[uniId].courses.push(course);
+      universitiesWithFavorites[uniId].total_courses++;
+    });
+
+    const favoritesArray = Object.values(universitiesWithFavorites);
+    console.log('[Universities] Grouped into', favoritesArray.length, 'universities');
+
+    calculateUniversityStats(favoritesArray);
+    setFavorites(favoritesArray);
+
+    /* ── COMMENTED OUT: separate courses API (mixed data in DB — restore when clean) ──
     console.log('[Universities] Loading favorite courses from API...');
-    
     const response = await getAllCourses();
-    
-    // Extract courses array
+
     let coursesArray = [];
     if (Array.isArray(response)) {
       coursesArray = response;
     } else if (response?.data && Array.isArray(response.data)) {
       coursesArray = response.data;
     }
-    
-    // Filter only favorite courses
+
     const favoriteCourses = coursesArray.filter(course => course.isFavorite === true);
-    
+
     console.log('[Universities] Found', favoriteCourses.length, 'favorite courses');
-    
-    // Group by university
+
     const universitiesWithFavorites = {};
-    
     favoriteCourses.forEach(course => {
       const uniId = course.universityId;
-      
       if (!universitiesWithFavorites[uniId]) {
         universitiesWithFavorites[uniId] = {
           id: uniId,
           name: course.universityName,
           code: course.universityCode,
           country: course.universityCountry,
-          city: course.universityCountry, // Use country as city fallback
+          city: course.universityCountry,
           image_url: null,
           total_courses: 0,
           courses: []
         };
       }
-      
       universitiesWithFavorites[uniId].courses.push(course);
       universitiesWithFavorites[uniId].total_courses++;
     });
-    
-    // Convert to array
+
     const favoritesArray = Object.values(universitiesWithFavorites);
-    
     console.log('[Universities] Grouped into', favoritesArray.length, 'universities');
-    
-    // Calculate stats for favorite universities
     calculateUniversityStats(favoritesArray);
-    
     setFavorites(favoritesArray);
-    
+    ── END COMMENTED OUT ── */
+
   } catch (error) {
     console.error('[Universities] Error loading favorites:', error);
     setFavorites([]);
@@ -2078,6 +2154,7 @@ const loadFavorites = async () => {
     setFavoritesLoading(false);
   }
 };
+
 
   // Add to favorites
   // Add to favorites (API integrated)

@@ -45,7 +45,7 @@ export const createOrder = async (payload) => {
     body: {
       amount: payload.amount ?? 100,
       currency: payload.currency ?? 'INR',
-      receipt: payload.receipt ?? `rcpt_${Date.now()}`,
+      receipt: payload.receipt ?? `rcpt_${Date.now().toString().slice(-10)}`,
       notes: payload.notes ?? {},
     },
   });
