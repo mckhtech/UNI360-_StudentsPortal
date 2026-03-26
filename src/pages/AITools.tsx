@@ -44,6 +44,9 @@ import {
 import { getStudentProfile } from "@/services/studentProfile";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAuthHeaders, makeAuthenticatedRequest } from "@/services/tokenService";
+import { checkPaymentHealth, verifyPayment } from "@/services/payment.js";
+import RazorpayButton from "@/components/RazorpayButton";
+import jsPDF from "jspdf";
 
 // n8n SOP Generator Configuration
 // n8n Configuration - Add at the top of AITools.tsx (around line 30)
@@ -80,7 +83,11 @@ const AITools = () => {
   const [skills, setSkills] = useState(['']);
   const [sopType, setSopType] = useState(''); // Add this line
   const [generatedContent, setGeneratedContent] = useState(null);
-  const [generationError, setGenerationError] = useState(null);
+const [generationError, setGenerationError] = useState(null);
+const [paymentHealthy, setPaymentHealthy] = useState(true);
+const [verifying, setVerifying] = useState(false);
+const [verifyError, setVerifyError] = useState<string | null>(null);
+const [verified, setVerified] = useState(false);
 
   // Enhanced AI tools data
   const aiTools = [
@@ -105,7 +112,7 @@ const AITools = () => {
       features: ["Academic/Professional templates", "Multiple formats", "Export to PDF/DOC", "Customizable"],
       color: "bg-green-100 text-green-600",
       bgGradient: "from-green-500 to-green-600",
-      price: "₹299",
+      price: "₹1",
       isPremium: true
     },
     {
@@ -189,6 +196,14 @@ useEffect(() => {
     loadProfileData();
   }
 }, [selectedTool, generationStep]);
+
+useEffect(() => {
+  if (generationStep === 0.5) {
+    setVerified(false);
+    setVerifyError(null);
+    checkPaymentHealth().then((ok) => setPaymentHealthy(ok));
+  }
+}, [generationStep]);
 
 // n8n SOP Generator API Integration
 const generateSOPWithN8N = async (formData) => {
@@ -536,64 +551,194 @@ if (result && result.success) {
   };
 
   const renderPaymentModal = () => {
-    const currentTool = aiTools.find(tool => tool.id === selectedTool);
-    if (!currentTool) return null;
+  const currentTool = aiTools.find(tool => tool.id === selectedTool);
+  if (!currentTool) return null;
+  const IconComponent = currentTool.icon;
 
-    const IconComponent = currentTool.icon;
+  return (
+    <motion.div
+      className="space-y-6 text-center py-8"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+    >
+      <div className="flex justify-center">
+        <div className={`p-4 rounded-full text-white bg-gradient-to-r ${currentTool.bgGradient}`}>
+          <Lock size={32} />
+        </div>
+      </div>
 
-    return (
-      <motion.div
-        className="space-y-6 text-center py-8"
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-      >
-        <div className="flex justify-center">
-          <div className={`p-4 rounded-full text-white bg-gradient-to-r ${currentTool.bgGradient}`}>
-            <Lock size={32} />
+      <div>
+        <h3 className="text-xl font-semibold mb-2">Premium Tool Access</h3>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
+          {currentTool.title} is a premium tool that requires payment to access
+        </p>
+        <div className="text-3xl font-bold text-primary mb-2">{currentTool.price}</div>
+        <p className="text-sm text-gray-500">One-time payment • Lifetime access</p>
+      </div>
+
+      <div className="space-y-3 text-left max-w-md mx-auto">
+        <h4 className="font-semibold text-center">What you get:</h4>
+        {currentTool.features.map((feature, idx) => (
+          <div key={idx} className="flex items-center gap-2 text-sm">
+            <CheckCircle size={16} className="text-green-600 flex-shrink-0" />
+            <span>{feature}</span>
           </div>
-        </div>
+        ))}
+      </div>
 
-        <div>
-          <h3 className="text-xl font-semibold mb-2">Premium Tool Access</h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            {currentTool.title} is a premium tool that requires payment to access
-          </p>
-          <div className="text-3xl font-bold text-primary mb-2">
-            {currentTool.price}
-          </div>
-          <p className="text-sm text-gray-500">One-time payment • Lifetime access</p>
+      {/* Health check failed */}
+      {!paymentHealthy && (
+        <div className="flex items-center justify-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 max-w-md mx-auto">
+          <X size={16} className="flex-shrink-0" />
+          Payment service is currently unavailable. Please try again later.
         </div>
+      )}
 
-        <div className="space-y-3 text-left max-w-md mx-auto">
-          <h4 className="font-semibold text-center">What you get:</h4>
-          {currentTool.features.map((feature, idx) => (
-            <div key={idx} className="flex items-center gap-2 text-sm">
-              <CheckCircle size={16} className="text-green-600 flex-shrink-0" />
-              <span>{feature}</span>
-            </div>
-          ))}
+      {/* Verify error */}
+      {verifyError && (
+        <div className="flex items-center justify-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 max-w-md mx-auto">
+          <X size={16} className="flex-shrink-0" />
+          {verifyError}
         </div>
+      )}
 
       
 
-<Button
-  onClick={() => {
-    handlePayment();
-  }}
-  className="px-8 py-3 bg-green-600 hover:bg-green-700"
-  size="lg"
->
-  <CreditCard size={16} className="mr-2" />
-  Pay with Razorpay
-</Button>
-
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-          <Shield size={12} />
-          <span>Secure payment powered by Razorpay</span>
+      {/* Verified success */}
+      {verified && (
+        <div className="flex items-center justify-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 max-w-md mx-auto">
+          <CheckCircle size={16} className="flex-shrink-0" />
+          Payment verified! Receipt downloaded. Unlocking tool…
         </div>
-      </motion.div>
-    );
-  };
+      )}
+
+      {/* Razorpay button — shown only when healthy and not yet verified */}
+      {!verified && paymentHealthy && (
+        <div className="flex justify-center">
+          <RazorpayButton
+            amount={100}
+            label={`Pay ${currentTool.price} with Razorpay`}
+            description={`${currentTool.name} — Uni360`}
+            notes={{ purpose: `${currentTool.name} Access`, toolId: selectedTool, section: "AI_TOOLS" }}
+            receipt={`ai_tool_${selectedTool}_${Date.now()}`}
+            className="px-8 py-3 bg-green-600 hover:bg-green-700 text-white"
+            onSuccess={async (paymentData) => {
+  console.log('[AITools] Payment success, paymentData:', paymentData);
+  // RazorpayButton already verifies internally — onSuccess only fires
+  // after backend verification passes. Skip double-verify.
+  setVerified(true);
+  downloadReceipt(paymentData);
+  setTimeout(() => {
+    handlePayment();
+  }, 1500);
+}}
+onFailure={(err) => {
+  console.error('[AITools] Payment failed:', err);
+  setVerifyError("Payment failed. Please try again.");
+}}
+            onFailure={(err) => {
+              console.error('[AITools] Payment failed:', err);
+              setVerifyError("Payment failed. Please try again.");
+            }}
+          />
+        </div>
+      )}
+
+      <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+        <Shield size={12} />
+        <span>Secure payment powered by Razorpay</span>
+      </div>
+    </motion.div>
+  );
+};
+
+  const downloadReceipt = (paymentData: any) => {
+  const currentTool = aiTools.find(t => t.id === selectedTool);
+  const doc = new jsPDF();
+  const pageW = 210;
+
+  const logo = new Image();
+  logo.src = "/assets/Uni360-logo.png";
+  try { doc.addImage(logo, "PNG", 14, 10, 28, 14); } catch {}
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(100, 100, 100);
+  doc.text("Uni360",                    pageW - 14, 14, { align: "right" });
+  doc.text("inquire@uni360degree.com",  pageW - 14, 19, { align: "right" });
+  doc.text("https://uni360degree.com",  pageW - 14, 24, { align: "right" });
+
+  doc.setDrawColor(220, 220, 220);
+  doc.line(14, 30, pageW - 14, 30);
+
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(30, 30, 30);
+  doc.text("Payment Receipt", pageW / 2, 46, { align: "center" });
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(60, 60, 60);
+  doc.text("Receipt No: ", 14, 58);
+  doc.setFont("helvetica", "bold");
+  doc.text(paymentData?.razorpay_payment_id ?? "N/A", 38, 58);
+  doc.setFont("helvetica", "normal");
+  doc.text("Date: ", 14, 65);
+  doc.setFont("helvetica", "bold");
+  doc.text(new Date().toLocaleString(), 26, 65);
+
+  doc.setDrawColor(220, 220, 220);
+  doc.line(14, 71, pageW - 14, 71);
+
+  doc.setFillColor(240, 240, 245);
+  doc.rect(14, 75, 182, 10, "F");
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(100, 100, 100);
+  doc.text("Details",     60,  82, { align: "center" });
+  doc.text("Information", 150, 82, { align: "center" });
+
+  const rows: [string, string][] = [
+    ["Tool",        currentTool?.title ?? "AI Tool"],
+    ["Purpose",     `${currentTool?.name ?? "AI Tool"} Access`],
+    ["Amount Paid", currentTool?.price ?? "N/A"],
+    ["Payment ID",  paymentData?.razorpay_payment_id ?? "N/A"],
+    ["Order ID",    paymentData?.razorpay_order_id   ?? "N/A"],
+    ["Status",      "Verified ✓"],
+  ];
+
+  let y = 92;
+  rows.forEach(([label, value], i) => {
+    if (i % 2 === 0) {
+      doc.setFillColor(250, 250, 255);
+      doc.rect(14, y - 5, 182, 10, "F");
+    }
+    doc.setDrawColor(230, 230, 230);
+    doc.rect(14, y - 5, 182, 10);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+    doc.text(label, 18, y);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(label === "Status" ? 22 : 30, label === "Status" ? 163 : 30, label === "Status" ? 74 : 30);
+    doc.text(value, 100, y);
+    y += 10;
+  });
+
+  doc.setDrawColor(220, 220, 220);
+  doc.line(14, y + 4, pageW - 14, y + 4);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(60, 60, 60);
+  doc.text("Issued by: ", 14, y + 14);
+  doc.setFont("helvetica", "bold");
+  doc.text("Uni360", 36, y + 14);
+  doc.setFont("helvetica", "italic");
+  doc.setTextColor(120, 120, 120);
+  doc.text("Thank you for your payment!", 14, y + 22);
+
+  doc.save(`ai_tool_receipt_${selectedTool}_${paymentData?.razorpay_payment_id ?? Date.now()}.pdf`);
+};
 
   const renderSOPForm = () => (
   <motion.div

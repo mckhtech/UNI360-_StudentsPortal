@@ -51,6 +51,9 @@ import {
   getProfileProgress
 } from "@/services/studentProfile";
 import { useAuth } from "@/contexts/AuthContext";
+import RazorpayButton from "@/components/RazorpayButton";
+import { checkPaymentHealth, verifyPayment } from "@/services/payment.js";
+import jsPDF from "jspdf";
 
 type Country = "DE" | "UK";
 
@@ -1465,187 +1468,233 @@ initialData.passportNumber =
 };
 // ============ END DYNAMIC FORM ============
 
-// Payment Modal
-const PaymentModal = ({ university, isOpen, onClose, onSuccess }) => {
-  const [loading, setLoading] = useState(false);
-  const [cardDetails, setCardDetails] = useState({
-    cardNumber: "",
-    expiry: "",
-    cvv: "",
-  });
-  const [errors, setErrors] = useState({});
+// ── Payment Modal (Razorpay) ─────────────────────────────────────────────────
+const PaymentModal = ({ university, isOpen, onClose, onSuccess, course }) => {
+  const [paymentHealthy, setPaymentHealthy] = useState(true);
+  const [verifying, setVerifying]           = useState(false);
+  const [verifyError, setVerifyError]       = useState<string | null>(null);
+  const [verified, setVerified]             = useState(false);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    let formattedValue = value.replace(/\s/g, '');
-    
-    if (name === 'cardNumber') {
-      formattedValue = value.replace(/\s/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
-      if (formattedValue.length > 19) return;
-    } else if (name === 'expiry') {
-      formattedValue = value.replace(/\D/g, '').replace(/(\d{2})(?=\d)/, '$1/');
-      if (formattedValue.length > 5) return;
-    } else if (name === 'cvv') {
-      formattedValue = value.replace(/\D/g, '');
-      if (formattedValue.length > 3) return;
+  useEffect(() => {
+    if (isOpen) {
+      setVerified(false);
+      setVerifyError(null);
+      checkPaymentHealth().then((ok) => setPaymentHealthy(ok));
     }
-    
-    setCardDetails((prev) => ({ ...prev, [name]: formattedValue }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
+  }, [isOpen]);
 
-  const validatePayment = () => {
-    const newErrors = {};
-    const cardNumberDigits = cardDetails.cardNumber.replace(/\s/g, '');
-    if (cardNumberDigits.length < 13) newErrors.cardNumber = "Invalid card";
-    if (!/^\d{2}\/\d{2}$/.test(cardDetails.expiry)) newErrors.expiry = "Invalid MM/YY";
-    if (cardDetails.cvv.length !== 3) newErrors.cvv = "Invalid CVV";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  const downloadReceipt = (paymentData: any) => {
+    const doc = new jsPDF();
+    const pageW = 210;
 
-  const handlePay = (e) => {
-  e.preventDefault();
-  if (validatePayment()) {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      console.log("Payment successful, calling onSuccess with university:", university);
-      onSuccess(university); // Pass university explicitly
-    }, 2000);
-  }
-};
+    // ── Logo ──────────────────────────────────────────────────────
+    const logo = new Image();
+    logo.src = "/assets/Uni360-logo.png";
+    try { doc.addImage(logo, "PNG", 14, 10, 28, 14); } catch {}
+
+    // ── Top right contact ─────────────────────────────────────────
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text("Uni360",                    pageW - 14, 14, { align: "right" });
+    doc.text("inquire@uni360degree.com",  pageW - 14, 19, { align: "right" });
+    doc.text("https://uni360degree.com",  pageW - 14, 24, { align: "right" });
+
+    // ── Divider ───────────────────────────────────────────────────
+    doc.setDrawColor(220, 220, 220);
+    doc.line(14, 30, pageW - 14, 30);
+
+    // ── Title ─────────────────────────────────────────────────────
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 30, 30);
+    doc.text("Payment Receipt", pageW / 2, 46, { align: "center" });
+
+    // ── Receipt No & Date ─────────────────────────────────────────
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text("Receipt No: ", 14, 58);
+    doc.setFont("helvetica", "bold");
+    doc.text(paymentData?.razorpay_payment_id ?? "N/A", 38, 58);
+    doc.setFont("helvetica", "normal");
+    doc.text("Date: ", 14, 65);
+    doc.setFont("helvetica", "bold");
+    doc.text(new Date().toLocaleString(), 26, 65);
+
+    // ── Divider ───────────────────────────────────────────────────
+    doc.setDrawColor(220, 220, 220);
+    doc.line(14, 71, pageW - 14, 71);
+
+    // ── Table header ──────────────────────────────────────────────
+    doc.setFillColor(240, 240, 245);
+    doc.rect(14, 75, 182, 10, "F");
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(100, 100, 100);
+    doc.text("Details",     60,  82, { align: "center" });
+    doc.text("Information", 150, 82, { align: "center" });
+
+    // ── Table rows ────────────────────────────────────────────────
+    const rows: [string, string][] = [
+      ["University",   university?.name ?? "N/A"],
+      ["Course",       course?.name     ?? "N/A"],
+      ["Purpose",      "Application Processing Fee"],
+      ["Amount Paid",  "₹1.00"],
+      ["Payment ID",   paymentData?.razorpay_payment_id ?? "N/A"],
+      ["Order ID",     paymentData?.razorpay_order_id   ?? "N/A"],
+      ["Status",       "Verified ✓"],
+    ];
+
+    let y = 92;
+    rows.forEach(([label, value], i) => {
+      if (i % 2 === 0) {
+        doc.setFillColor(250, 250, 255);
+        doc.rect(14, y - 5, 182, 10, "F");
+      }
+      doc.setDrawColor(230, 230, 230);
+      doc.rect(14, y - 5, 182, 10);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(80, 80, 80);
+      doc.text(label, 18, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(label === "Status" ? 22 : 30, label === "Status" ? 163 : 30, label === "Status" ? 74 : 30);
+      doc.text(value, 100, y);
+      y += 10;
+    });
+
+    // ── Footer ────────────────────────────────────────────────────
+    doc.setDrawColor(220, 220, 220);
+    doc.line(14, y + 4, pageW - 14, y + 4);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text("Issued by: ", 14, y + 14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Uni360", 36, y + 14);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(120, 120, 120);
+    doc.text("Thank you for your payment!", 14, y + 22);
+
+    doc.save(`app_receipt_${paymentData?.razorpay_payment_id ?? Date.now()}.pdf`);
+  };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
-      <div className="bg-white rounded-lg max-w-md w-full shadow-lg">
-        {/* Modal Header */}
-        <div className="p-4 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <CreditCard className="w-5 h-5" />
-              <div>
-                <h2 className="text-lg font-bold">Payment</h2>
-                <p className="text-xs">Fee: €50 - {university?.name}</p>
-              </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-sm w-full shadow-2xl">
+        {/* Header */}
+        <div className="p-5 bg-gradient-to-r from-[#C4DFF0] to-[#E08D3C] rounded-t-xl flex items-center justify-between">
+          <div className="flex items-center gap-3 text-white">
+            <CreditCard className="w-5 h-5" />
+            <div>
+              <h2 className="text-base font-bold">Application Fee</h2>
+              <p className="text-xs opacity-90">{university?.name}</p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onClose} 
-              className="text-white hover:bg-white hover:bg-opacity-20"
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/20 h-8 w-8 p-0">
+            <X className="w-4 h-4" />
+          </Button>
         </div>
 
-        {/* Payment Form */}
-        <form onSubmit={handlePay} className="p-4 space-y-3">
-          {/* Card Number */}
-          <div className="space-y-1">
-            <Label htmlFor="cardNumber" className="text-xs font-semibold text-gray-700 flex items-center">
-              <CreditCard className="w-3 h-3 mr-1" />
-              Card Number
-            </Label>
-            <Input
-              id="cardNumber"
-              name="cardNumber"
-              placeholder="1234 5678 9012 3456"
-              value={cardDetails.cardNumber}
-              onChange={handleInputChange}
-              className={cn(
-                "h-9 text-sm",
-                errors.cardNumber ? "border-red-500" : "border-gray-200"
-              )}
+        {/* Body */}
+        <div className="p-6 space-y-5">
+          {/* Fee summary */}
+          <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Application Processing Fee</span>
+              <span className="font-medium">₹1.00</span>
+            </div>
+            <div className="border-t pt-2 flex justify-between font-semibold text-base">
+              <span>Total</span>
+              <span className="text-[#E08D3C]">₹1.00</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-500 text-center">
+            Secured by Razorpay · UPI, Card, Net Banking accepted
+          </p>
+
+          {/* Health check failed */}
+          {!paymentHealthy && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              Payment service is currently unavailable. Please try again later.
+            </div>
+          )}
+
+          {/* Verify error */}
+          {verifyError && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {verifyError}
+            </div>
+          )}
+
+          {/* Verifying spinner */}
+          {verifying && (
+            <div className="flex items-center justify-center gap-2 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Verifying payment…
+            </div>
+          )}
+
+          {/* Verified success state */}
+          {verified && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+              <Check className="w-4 h-4 flex-shrink-0" />
+              Payment verified! Receipt downloaded. Redirecting…
+            </div>
+          )}
+
+          {/* Razorpay button — hidden once verified */}
+          {!verified && paymentHealthy && (
+            <RazorpayButton
+              amount={100}
+              label="Pay ₹1 & Submit Application"
+              description={`Application fee — ${university?.name}`}
+              notes={{ purpose: "Application Fee", universityId: university?.id, section: "UNIVERSITIES" }}
+              receipt={`app_fee_${university?.id}_${Date.now()}`}
+              className="w-full bg-[#2C3539] hover:bg-[#1e2529] text-white"
+              onSuccess={async (paymentData) => {
+                console.log('[Universities] Razorpay callback, verifying…', paymentData);
+                setVerifying(true);
+                setVerifyError(null);
+                try {
+                  const ok = await verifyPayment({
+                    razorpay_order_id:    paymentData.razorpay_order_id,
+                    razorpay_payment_id:  paymentData.razorpay_payment_id,
+                    razorpay_signature:   paymentData.razorpay_signature,
+                  });
+                  if (!ok) throw new Error("Signature mismatch");
+                  console.log('[Universities] ✅ Payment verified');
+                  setVerified(true);
+                  // Download receipt
+                  downloadReceipt(paymentData);
+                  // Navigate to application after short delay
+                  setTimeout(() => onSuccess(university), 1500);
+                } catch (err: any) {
+                  console.error('[Universities] Verification failed:', err);
+                  setVerifyError("Payment verification failed. Please contact support with Payment ID: " + (paymentData?.razorpay_payment_id ?? "N/A"));
+                } finally {
+                  setVerifying(false);
+                }
+              }}
+              onFailure={(err) => {
+                console.error('[Universities] Payment failed:', err);
+                setVerifyError("Payment failed. Please try again.");
+              }}
             />
-            {errors.cardNumber && <p className="text-red-500 text-xs">{errors.cardNumber}</p>}
-          </div>
+          )}
 
-          {/* Expiry and CVV */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="expiry" className="text-xs font-semibold text-gray-700 flex items-center">
-                <Calendar className="w-3 h-3 mr-1" />
-                Expiry
-              </Label>
-              <Input
-                id="expiry"
-                name="expiry"
-                placeholder="MM/YY"
-                value={cardDetails.expiry}
-                onChange={handleInputChange}
-                className={cn(
-                  "h-9 text-sm",
-                  errors.expiry ? "border-red-500" : "border-gray-200"
-                )}
-              />
-              {errors.expiry && <p className="text-red-500 text-xs">{errors.expiry}</p>}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="cvv" className="text-xs font-semibold text-gray-700 flex items-center">
-                <Lock className="w-3 h-3 mr-1" />
-                CVV
-              </Label>
-              <Input
-                id="cvv"
-                name="cvv"
-                type="password"
-                placeholder="123"
-                value={cardDetails.cvv}
-                onChange={handleInputChange}
-                className={cn(
-                  "h-9 text-sm",
-                  errors.cvv ? "border-red-500" : "border-gray-200"
-                )}
-              />
-              {errors.cvv && <p className="text-red-500 text-xs">{errors.cvv}</p>}
-            </div>
-          </div>
-
-          {/* Payment Summary */}
-          <div className="bg-gray-50 p-3 rounded-lg">
-            <div className="space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Application Fee</span>
-                <span className="font-medium">€50.00</span>
-              </div>
-              <div className="flex justify-between font-semibold">
-                <span>Total</span>
-                <span className="text-[#E08D3C]">€50.00</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Submit Button */}
-          <Button 
-            type="submit" 
-            className="w-full h-9 bg-[#2C3539] hover:bg-[#1e2529] text-white text-sm" 
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4 mr-1" />
-                Pay €50
-              </>
-            )}
-          </Button>
-
-          {/* Security Notice */}
-          <div className="flex items-center justify-center space-x-1 text-xs text-gray-500 bg-green-50 p-2 rounded border border-green-200">
-            <Lock className="w-3 h-3 text-green-600" />
-            <span>Secure payment</span>
-          </div>
-        </form>
+          {!verified && (
+            <Button variant="ghost" className="w-full text-sm text-gray-500" onClick={onClose}>
+              Cancel
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -2993,6 +3042,7 @@ useEffect(() => {
 {/* Payment Modal - Opens Third */}
 <PaymentModal
   university={selectedUniversity}
+  course={selectedCourse}
   isOpen={isPaymentModalOpen}
   onClose={() => {
     console.log("Payment modal closing");

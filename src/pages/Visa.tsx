@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
 
 import {
   CheckCircle,
@@ -34,6 +35,8 @@ import {
   getVisaAppointments,
   getMeetingUrl,
 } from "@/services/studentProfile.js";
+import RazorpayButton from "@/components/RazorpayButton";
+
 
 type Country = "DE" | "UK";
 
@@ -238,26 +241,53 @@ export default function Visa() {
 
   // ── Fetch helpers ───────────────────────────────────────────────
 
+  // localStorage key per country for offline persistence
+  const lsKey = `visa_tracker_${selectedCountry}`;
+
   // fetchTracker is the single source of truth:
   // it returns checklistItems + completedItems + progress all at once.
-  const fetchTracker = useCallback(async () => {
+  // resetOnNull=true (default) → on null, loads from localStorage (initial load / country switch)
+  // resetOnNull=false         → on null, keeps current state   (re-sync after PUT)
+  const fetchTracker = useCallback(async (resetOnNull = true) => {
     setTrackerLoading(true);
     try {
       const res = await getVisaTracker(selectedCountry);
       if (res === null) {
-        // API not live yet — stay empty, API-available = false
+        // API not live
         setTrackerApiAvailable(false);
-        setTrackerId(null);
-        setCompletedItems([]);
-        setTrackerStatus("NOT_STARTED");
-        setTotalItems(0);
-        setProgressPercent(0);
+        if (resetOnNull) {
+          // Load from localStorage so checked items survive page refresh
+          try {
+            const saved = localStorage.getItem(lsKey);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              setCompletedItems(parsed.completedItems ?? []);
+              setTrackerStatus(parsed.status ?? "NOT_STARTED");
+              setProgressPercent(parsed.progressPercent ?? 0);
+            } else {
+              setCompletedItems([]);
+              setTrackerStatus("NOT_STARTED");
+              setProgressPercent(0);
+            }
+          } catch {
+            setCompletedItems([]);
+            setTrackerStatus("NOT_STARTED");
+            setProgressPercent(0);
+          }
+          setTrackerId(null);
+          setTotalItems(0);
+        }
+        // resetOnNull=false → keep whatever the user toggled locally
         return;
       }
       const data = res?.data ?? res;
       setTrackerApiAvailable(true);
       setTrackerId(data?.trackerId ?? null);
-      setCompletedItems(Array.isArray(data?.completedItems) ? data.completedItems : []);
+      const serverCompleted = Array.isArray(data?.completedItems) ? data.completedItems : [];
+// Only use server value if it has items OR localStorage has nothing saved
+const lsSaved = localStorage.getItem(lsKey);
+const localCompleted = lsSaved ? (JSON.parse(lsSaved).completedItems ?? []) : [];
+setCompletedItems(serverCompleted.length > 0 ? serverCompleted : localCompleted);
       setTrackerStatus(data?.status ?? "NOT_STARTED");
       setTotalItems(data?.totalItems ?? 0);
       setProgressPercent(data?.progressPercent ?? 0);
@@ -265,17 +295,34 @@ export default function Visa() {
       if (Array.isArray(data?.checklistItems)) {
         setChecklistItems(data.checklistItems);
       }
+      // API is live — clear localStorage since server is now authoritative
+      localStorage.removeItem(lsKey);
     } catch {
       setTrackerApiAvailable(false);
+      // On error, also fall back to localStorage
+      try {
+        const saved = localStorage.getItem(lsKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setCompletedItems(parsed.completedItems ?? []);
+          setTrackerStatus(parsed.status ?? "NOT_STARTED");
+          setProgressPercent(parsed.progressPercent ?? 0);
+        } else {
+          setCompletedItems([]);
+          setTrackerStatus("NOT_STARTED");
+          setProgressPercent(0);
+        }
+      } catch {
+        setCompletedItems([]);
+        setTrackerStatus("NOT_STARTED");
+        setProgressPercent(0);
+      }
       setTrackerId(null);
-      setCompletedItems([]);
-      setTrackerStatus("NOT_STARTED");
       setTotalItems(0);
-      setProgressPercent(0);
     } finally {
       setTrackerLoading(false);
     }
-  }, [selectedCountry]);
+  }, [selectedCountry, lsKey]);
 
   // fetchChecklist runs in parallel — provides title + overrides items if checklist API has extra data
   const fetchChecklist = useCallback(async () => {
@@ -382,16 +429,31 @@ export default function Visa() {
 
     setSaving(true);
     try {
-      await updateVisaTracker({
+      const saveResult = await updateVisaTracker({
         country: selectedCountry,
         completed_items: newCompleted,
         status: newStatus,
         notes: "",
       });
-      // Re-sync from server — tracker is source of truth
-      await fetchTracker();
+      if (saveResult !== null) {
+  // API is live — keep optimistic state, just clear localStorage
+  // Don't re-fetch as the server may not return completedItems correctly
+  localStorage.removeItem(lsKey);
+  localStorage.setItem(lsKey, JSON.stringify({
+    completedItems: newCompleted,
+    status: newStatus,
+    progressPercent: newPercent,
+  }));
+} else {
+        // API offline — persist to localStorage so state survives page refresh
+        localStorage.setItem(lsKey, JSON.stringify({
+          completedItems: newCompleted,
+          status: newStatus,
+          progressPercent: newPercent,
+        }));
+      }
     } catch {
-      // Revert optimistic update on real failure
+      // Real network/server error — revert optimistic update
       setCompletedItems(completedItems);
       setProgressPercent(progressPercent);
       setTrackerStatus(trackerStatus);
@@ -741,17 +803,28 @@ export default function Visa() {
                       )}
 
                       {step.status === "current" && (
-                        <div className="flex justify-end gap-2 mt-2">
-                          <Button size="sm" className="rounded-full text-xs">
-                            <Upload className="w-3 h-3 mr-1.5" />
-                            Upload
-                          </Button>
-                          <Button size="sm" variant="outline" className="rounded-full text-xs">
-                            <ExternalLink className="w-3 h-3 mr-1.5" />
-                            View Details
-                          </Button>
-                        </div>
-                      )}
+  <div className="flex justify-end gap-2 mt-2">
+    <label className="cursor-pointer">
+      <input
+        type="file"
+        className="hidden"
+        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          // TODO: wire to your upload API here
+          console.log("Uploading file:", file.name, "for step:", step.title);
+          alert(`"${file.name}" selected for "${step.title}". Wire to your upload API.`);
+          e.target.value = "";
+        }}
+      />
+      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-primary text-white hover:bg-primary/90 transition-colors">
+        <Upload className="w-3 h-3" />
+        Upload
+      </span>
+    </label>
+  </div>
+)}
                     </div>
                   </div>
                 </Card>
@@ -852,8 +925,8 @@ export default function Visa() {
         )}
       </motion.section>
 
-      {/* ── GERMANY – Visa Appointment Fee ───────────────────────────── */}
-      {selectedCountry === "DE" && (
+      {/* ── VISA APPOINTMENT FEE (DE + UK) ──────────────────────────── */}
+      {(selectedCountry === "DE" || selectedCountry === "UK") && (
         <motion.section
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -862,42 +935,212 @@ export default function Visa() {
           <Card className="p-6 border-l-4 border-orange-200 bg-orange-50">
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div className="flex-1">
-                <h3 className="font-semibold text-lg mb-2">Visa Appointment Fee</h3>
+                <h3 className="font-semibold text-lg mb-2">
+                  {selectedCountry === "UK" ? "UK Visa Application Fee" : "Visa Appointment Fee"}
+                </h3>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     Due: 2024-04-20
                   </div>
-                  <div className="text-xl font-bold text-primary">€80</div>
+                  <div className="text-xl font-bold text-primary">
+                    {selectedCountry === "UK" ? "£490" : "€80"}
+                  </div>
                 </div>
                 <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-amber-800">
-                      <strong>Important:</strong> For German Consulate appointments, please carry a
-                      demand draft for fees payment in the specified format.
+                      {selectedCountry === "UK" ? (
+                        <>
+                          <strong>Important:</strong> The UK Student Visa fee must be paid online
+                          when submitting your application. You will also need to pay the
+                          Immigration Health Surcharge (IHS) separately before applying.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Important:</strong> For German Consulate appointments, please carry a
+                          demand draft for fees payment in the specified format.
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
               <div className="flex flex-col gap-2 mt-12">
-                <Button
+                <RazorpayButton
+                  amount={100}
+                  label="Pay ₹1 Now"
+                  description={selectedCountry === "UK" ? "UK Visa Application Fee" : "Visa Appointment Fee"}
+                  notes={{ purpose: selectedCountry === "UK" ? "UK Visa Application Fee" : "Visa Appointment Fee", section: "VISA" }}
+                  receipt={`visa_fee_${selectedCountry}_${Date.now()}`}
                   className="rounded-pill"
-                  onClick={() =>
-                    window.open("https://india.diplo.de/in-en/ueber-uns/mumbai", "_blank")
-                  }
-                >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Pay Now
-                </Button>
-                <Button
-                  variant="outline"
-                  className="rounded-pill"
-                  onClick={handleDemandDraftDownload}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Demand Draft Form
-                </Button>
+                  onSuccess={async (paymentData) => {
+  console.log('[Visa] Payment verified:', paymentData);
+
+  // ── Generate & auto-download PDF receipt ──────────────────────
+  const receiptLines = [
+    "========================================",
+    "         PAYMENT RECEIPT",
+    "========================================",
+    `Date       : ${new Date().toLocaleString()}`,
+    `Country    : ${selectedCountry === "UK" ? "United Kingdom" : "Germany"}`,
+    `Purpose    : ${selectedCountry === "UK" ? "UK Visa Application Fee" : "Visa Appointment Fee"}`,
+    `Amount     : ${selectedCountry === "UK" ? "£490" : "€80"}`,
+    `Payment ID : ${paymentData?.razorpay_payment_id ?? "N/A"}`,
+    `Order ID   : ${paymentData?.razorpay_order_id ?? "N/A"}`,
+    `Status     : Verified ✓`,
+    "========================================",
+    "   Keep this receipt for your records.",
+    "========================================",
+  ].join("\n");
+
+ // ── Fetch full payment details from Razorpay via your backend ──
+let paymentDetails: any = {};
+try {
+  const res = await fetch(
+    `https://backend.uni360degree.com/api/v1/payment/details/${paymentData?.razorpay_payment_id}`,
+    { headers: { "Content-Type": "application/json" } }
+  );
+  const json = await res.json();
+  paymentDetails = json?.data ?? {};
+} catch {
+  // fallback to what Razorpay returned directly
+  paymentDetails = paymentData ?? {};
+}
+
+const doc = new jsPDF();
+const pageW = 210;
+
+// ── Logo ───────────────────────────────────────────────────────
+const logo = new Image();
+logo.src = "/assets/Uni360-logo.png";
+await new Promise((res) => { logo.onload = res; logo.onerror = res; });
+try { doc.addImage(logo, "PNG", 14, 10, 28, 14); } catch {}
+
+// ── Company name & contact (top right) ────────────────────────
+doc.setFontSize(9);
+doc.setFont("helvetica", "normal");
+doc.setTextColor(100, 100, 100);
+doc.text("Uni360", pageW - 14, 14, { align: "right" });
+doc.text("inquire@uni360degree.com", pageW - 14, 19, { align: "right" });
+doc.text("https://uni360degree.com", pageW - 14, 24, { align: "right" });
+
+// ── Divider ────────────────────────────────────────────────────
+doc.setDrawColor(220, 220, 220);
+doc.line(14, 30, pageW - 14, 30);
+
+// ── Title ──────────────────────────────────────────────────────
+doc.setFontSize(18);
+doc.setFont("helvetica", "bold");
+doc.setTextColor(30, 30, 30);
+doc.text("Payment Receipt", pageW / 2, 46, { align: "center" });
+
+// ── Receipt No & Date ──────────────────────────────────────────
+doc.setFontSize(10);
+doc.setFont("helvetica", "normal");
+doc.setTextColor(60, 60, 60);
+doc.text(`Receipt No: `, 14, 58);
+doc.setFont("helvetica", "bold");
+doc.text(paymentData?.razorpay_payment_id ?? "N/A", 38, 58);
+
+doc.setFont("helvetica", "normal");
+doc.text(`Date: `, 14, 65);
+doc.setFont("helvetica", "bold");
+doc.text(new Date().toLocaleString(), 26, 65);
+
+// ── Divider ────────────────────────────────────────────────────
+doc.setDrawColor(220, 220, 220);
+doc.line(14, 71, pageW - 14, 71);
+
+// ── Table header ───────────────────────────────────────────────
+doc.setFillColor(240, 240, 245);
+doc.rect(14, 75, 182, 10, "F");
+doc.setFontSize(10);
+doc.setFont("helvetica", "bold");
+doc.setTextColor(100, 100, 100);
+doc.text("Details", 60, 82, { align: "center" });
+doc.text("Information", 150, 82, { align: "center" });
+
+// ── Table rows ─────────────────────────────────────────────────
+const rows: [string, string][] = [
+  ["Received From",              paymentDetails?.name ?? paymentDetails?.email ?? paymentDetails?.contact ?? "Student"],
+  ["Amount Paid",                `₹${((paymentDetails?.amount ?? paymentData?.amount ?? 100) / 100).toFixed(2)}`],
+  ["Payment Method",             paymentDetails?.method ?? "Online (Razorpay)"],
+  ["Order ID",                   paymentData?.razorpay_order_id ?? "N/A"],
+  ["Payment ID",                 paymentData?.razorpay_payment_id ?? "N/A"],
+  ["Description of Services",    selectedCountry === "UK" ? "UK Visa Application Fee" : "Visa Appointment Fee"],
+  ["Status",                     "Verified ✓"],
+];
+
+let y = 92;
+rows.forEach(([label, value], i) => {
+  if (i % 2 === 0) {
+    doc.setFillColor(250, 250, 255);
+    doc.rect(14, y - 5, 182, 10, "F");
+  }
+  doc.setDrawColor(230, 230, 230);
+  doc.rect(14, y - 5, 182, 10);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(80, 80, 80);
+  doc.text(label, 18, y);
+
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(label === "Status" ? 22 : 30, label === "Status" ? 163 : 30, label === "Status" ? 74 : 30);
+  doc.text(value, 100, y);
+  y += 10;
+});
+
+// ── Divider ────────────────────────────────────────────────────
+doc.setDrawColor(220, 220, 220);
+doc.line(14, y + 4, pageW - 14, y + 4);
+
+// ── Issued by & thank you ──────────────────────────────────────
+doc.setFontSize(10);
+doc.setFont("helvetica", "normal");
+doc.setTextColor(60, 60, 60);
+doc.text("Issued by: ", 14, y + 14);
+doc.setFont("helvetica", "bold");
+doc.text("Uni360", 36, y + 14);
+
+doc.setFont("helvetica", "italic");
+doc.setTextColor(120, 120, 120);
+doc.text("Thank you for your payment!", 14, y + 22);
+
+// ── Save ───────────────────────────────────────────────────────
+doc.save(`visa_payment_receipt_${selectedCountry}_${paymentData?.razorpay_payment_id ?? Date.now()}.pdf`);
+  // ── Then open the portal ───────────────────────────────────────
+  window.open(
+    selectedCountry === "UK"
+      ? "https://apply.visas4uk.com/apply-uk-visa/"
+      : "https://india.diplo.de/in-en/ueber-uns/mumbai",
+    "_blank"
+  );
+}}
+                  onFailure={(err) => console.error('[Visa] Payment failed:', err)}
+                />
+                {selectedCountry === "DE" && (
+                  <Button
+                    variant="outline"
+                    className="rounded-pill"
+                    onClick={handleDemandDraftDownload}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Demand Draft Form
+                  </Button>
+                )}
+                {selectedCountry === "UK" && (
+                  <Button
+                    variant="outline"
+                    className="rounded-pill"
+                    onClick={() => window.open("https://www.gov.uk/healthcare-immigration-application", "_blank")}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Pay IHS Separately
+                  </Button>
+                )}
               </div>
             </div>
           </Card>
